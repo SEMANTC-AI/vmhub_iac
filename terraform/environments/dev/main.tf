@@ -45,14 +45,3 @@ module "service_account" {
   environment  = "dev"
   account_id   = "vmhub-sync-sa-dev"
 }
-
-module "sync_job" {
-  source = "../../modules/sync-job"
-
-  project_id       = var.project_id
-  region          = var.region
-  environment     = "dev"
-  cnpj            = var.example_cnpj
-  service_account = module.service_account.service_account_email
-  container_image = var.container_image
-}

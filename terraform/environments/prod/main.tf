@@ -45,19 +45,3 @@ module "service_account" {
   environment  = "prod"
   account_id   = "vmhub-sync-sa-prod"
 }
-
-module "sync_job" {
-  source = "../../modules/sync-job"
-
-  project_id       = var.project_id
-  region          = var.region
-  environment     = "prod"
-  cnpj            = var.example_cnpj
-  service_account = module.service_account.service_account_email
-  container_image = var.container_image
-  
-  # production-specific overrides
-  cpu_limit        = var.cpu_limit
-  memory_limit     = var.memory_limit
-  timeout_seconds  = var.timeout_seconds
-}

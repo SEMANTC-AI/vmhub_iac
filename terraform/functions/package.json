@@ -3,12 +3,15 @@
   "version": "1.0.0",
   "description": "VMHub infrastructure provisioning function",
   "main": "src/index.js",
+  "engines": {
+    "node": "18"
+  },
   "dependencies": {
-    "@google-cloud/storage": "^6.0.0",
-    "@google-cloud/bigquery": "^6.0.0",
+    "@google-cloud/storage": "^7.0.0",
+    "@google-cloud/bigquery": "^7.0.0",
     "@google-cloud/run": "^1.0.0",
-    "@google-cloud/scheduler": "^3.0.0",
-    "firebase-admin": "^11.0.0",
-    "firebase-functions": "^4.0.0"
+    "@google-cloud/scheduler": "^4.0.0",
+    "firebase-admin": "^11.11.0",
+    "firebase-functions": "^4.5.0"
   }
 }

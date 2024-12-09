@@ -1,154 +1,168 @@
 # VMHub Infrastructure as Code
 
 ## Overview
-Infrastructure as code for the VMHub Data Pipeline using Terraform and Google Cloud Platform.
+Infrastructure automation for VMHub Data Pipeline using Terraform and Google Cloud Platform, with dynamic resource provisioning via Cloud Functions.
 
 ## Architecture Diagram
 ```mermaid
-graph LR
-    A[Web App] -->|Firebase Auth| B[Firebase]
-    B -->|Store Tokens| C[Firestore]
-    D[Cloud Scheduler] -->|Trigger| E[Cloud Run Job]
-    E -->|Read Tokens| C
-    E -->|Fetch Data| F[VMHub API]
-    E -->|Store Raw| G[Cloud Storage]
-    E -->|Load| H[BigQuery]
+graph TB
+    A[Web Interface] -->|Auth| B[Firebase Auth]
+    A -->|Store| C[Firestore]
+    C -->|Trigger| D[Cloud Function]
+    D -->|Create| E[Resources per CNPJ]
+    E -->|Contains| F[Cloud Run Job]
+    E -->|Contains| G[Cloud Storage]
+    E -->|Contains| H[BigQuery]
+    E -->|Contains| I[Cloud Scheduler]
+    F -->|Fetch| J[VMHub API]
 ```
 
 ## Project Structure
 ```
 terraform/
 ├── environments/          
-│   ├── dev/              # Development environment
-│   │   ├── main.tf       # Main configuration
-│   │   ├── variables.tf  # Variable definitions
-│   │   └── terraform.tfvars # Variable values
-│   └── prod/             # Production environment
+│   ├── dev/              # Core infrastructure - development
+│   │   ├── main.tf       
+│   │   ├── variables.tf  
+│   │   └── terraform.tfvars
+│   └── prod/             # Core infrastructure - production
 ├── modules/              
-│   ├── base-infrastructure/  # Project-level setup
-│   │   ├── main.tf
+│   ├── base-infrastructure/  # Project-level resources
+│   │   ├── main.tf          # APIs, monitoring, etc.
 │   │   ├── variables.tf
 │   │   └── outputs.tf
-│   ├── service-account/     # Service account & IAM
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   └── sync-job/           # Per-CNPJ resources
+│   └── service-account/      # IAM and permissions
 │       ├── main.tf
 │       ├── variables.tf
 │       └── outputs.tf
+└── functions/            
+    └── provisioner/          # Dynamic CNPJ resource creation
+        ├── src/
+        │   ├── index.js      # Cloud Function entry point
+        │   ├── infrastructure.js  # Resource provisioning
+        │   └── config.js     # Configuration
+        ├── package.json
+        └── terraform/        # Function deployment
+            ├── main.tf
+            ├── variables.tf
+            └── outputs.tf
 ```
 
-## Resources Created Per CNPJ
+## Components
 
-| Resource | Naming Convention | Purpose |
-|----------|------------------|----------|
-| Cloud Run Job | `vmhub-sync-{cnpj}` | Executes data sync |
-| Storage Bucket | `vmhub-data-semantc-ai-{cnpj}-{env}` | Stores raw data |
-| BigQuery Dataset | `CNPJ_{cnpj}_RAW` | Data warehouse |
-| Cloud Scheduler | `vmhub-sync-schedule-{cnpj}` | Triggers sync job |
+### Core Infrastructure (Terraform)
+- Enables required GCP APIs
+- Sets up service accounts and IAM permissions
+- Configures monitoring and logging
+- Manages base project resources
 
-## Prerequisites
+### Dynamic Provisioner (Cloud Function)
+Automatically creates per-CNPJ resources when new users configure their tokens:
+- Cloud Storage bucket for raw data
+- BigQuery dataset for analytics
+- Cloud Run job for data sync
+- Cloud Scheduler for automated syncs
 
-1. Google Cloud Project
-```bash
-gcloud config set project PROJECT_ID
-```
+## Resource Naming Conventions
 
-2. Required APIs
-```bash
-gcloud services enable cloudresourcemanager.googleapis.com
-gcloud services enable serviceusage.googleapis.com
-gcloud services enable run.googleapis.com
-```
-
-3. Firebase Project with:
-   - Authentication enabled
-   - Firestore database created
+| Resource | Pattern | Example |
+|----------|---------|---------|
+| Storage Bucket | `vmhub-data-semantc-ai-{cnpj}-{env}` | `vmhub-data-semantc-ai-12345678000199-dev` |
+| BigQuery Dataset | `CNPJ_{cnpj}_RAW` | `CNPJ_12345678000199_RAW` |
+| Cloud Run Job | `vmhub-sync-{cnpj}` | `vmhub-sync-12345678000199` |
+| Cloud Scheduler | `vmhub-sync-schedule-{cnpj}` | `vmhub-sync-schedule-12345678000199` |
 
 ## Setup Instructions
 
-1. Create Terraform state bucket:
+1. Deploy Core Infrastructure:
 ```bash
-gsutil mb -l us-central1 gs://tf-state-semantc-ai-dev
-gsutil versioning set on gs://tf-state-semantc-ai-dev
-```
-
-2. Initialize Terraform:
-```bash
-cd environments/dev  # or prod
+# Initialize and apply core infrastructure
+cd terraform/environments/dev  # or prod
 terraform init
-```
-
-3. Plan changes:
-```bash
-terraform plan
-```
-
-4. Apply changes:
-```bash
 terraform apply
 ```
 
-## Module Details
+2. Deploy Provisioning Function:
+```bash
+# Install dependencies
+cd terraform/functions/provisioner
+npm install
 
-### Base Infrastructure
-- Enables required GCP APIs
-- Creates Artifact Registry repository
-- Sets up logging and monitoring
-- Configures basic project resources
-
-### Service Account
-- Creates main service account
-- Sets up IAM permissions for:
-  - Cloud Run execution
-  - Storage access
-  - BigQuery operations
-  - Firestore reading
-  - Cloud Scheduler operations
-
-### Sync Job
-- Creates per-CNPJ resources
-- Configures Cloud Run job
-- Sets up data storage
-- Establishes scheduling
-
-## Environment Variables
-Required in Firestore per CNPJ:
-```json
-{
-  "vmhub_token": "xxx",
-  "whatsapp_token": "xxx"
-}
+# Deploy function
+cd terraform
+terraform init
+terraform apply
 ```
 
-## Security Considerations
-- Tokens stored in Firestore
+3. Set up Firestore structure:
+```
+users/
+└── {userId}/
+    └── tokens/
+        └── {cnpj}/
+            ├── vmhub_token: string
+            ├── whatsapp_token: string
+            ├── status: string
+            └── created_at: timestamp
+```
+
+## Workflow
+
+1. User Flow:
+   - User registers via web interface
+   - Configures CNPJ and tokens
+   - Data saved to Firestore
+
+2. Provisioning Flow:
+   - Cloud Function triggered by Firestore write
+   - Creates required resources for CNPJ
+   - Updates status in Firestore
+   - Triggers initial data sync
+
+3. Operational Flow:
+   - Cloud Scheduler triggers periodic syncs
+   - Data stored in Cloud Storage
+   - Data loaded to BigQuery
+   - WhatsApp notifications sent based on data
+
+## Monitoring
+
+- Cloud Function execution logs
+- Resource provisioning status in Firestore
+- Sync job execution status
+- Error metrics and alerts
+
+## Security
+
+- Firebase Authentication
 - Service account least-privilege access
-- Bucket-level access control
-- Dataset-level permissions
+- Firestore security rules
+- Resource isolation per CNPJ
 
-## Monitoring & Logging
-- Custom error metrics
-- Job failure alerts
-- Execution logs retention
-- Performance monitoring
+## Development
 
-## Maintenance
-- Regular state backup
-- Token rotation process
-- Log analysis
-- Resource cleanup
+1. Local Development:
+```bash
+cd terraform/functions/provisioner
+npm install
+npm run test  # if tests are set up
+```
 
-## Deployment Process
-1. Dev environment testing
-2. Staging verification
-3. Production deployment
-4. Post-deployment validation
+2. Deployment:
+```bash
+# Deploy infrastructure changes
+cd terraform/environments/dev
+terraform apply
+
+# Deploy function changes
+cd terraform/functions/provisioner/terraform
+terraform apply
+```
 
 ## Contributing
+
 1. Create feature branch
-2. Update terraform configurations
+2. Make changes
 3. Test in dev environment
 4. Submit pull request
 
@@ -156,7 +170,7 @@ Required in Firestore per CNPJ:
 For issues and support:
 - Infrastructure: DevOps Team
 - Data Pipeline: Data Engineering Team
-- User Management: Support Team
+- Web Interface: Frontend Team
 
 ---
-Built with ❤️ using Terraform and Google Cloud Platform
+Built with ❤️ using Terraform, Google Cloud Platform, and Firebase
