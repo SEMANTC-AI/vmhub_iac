@@ -4,7 +4,6 @@
 resource "google_project_service" "required_apis" {
   for_each = toset([
     "cloudresourcemanager.googleapis.com",  # resource manager api
-    "cloudrun.googleapis.com",              # cloud run api
     "artifactregistry.googleapis.com",      # artifact registry api
     "cloudbuild.googleapis.com",            # cloud build api
     "cloudscheduler.googleapis.com",        # cloud scheduler api
@@ -52,9 +51,16 @@ resource "google_logging_metric" "job_failures" {
   project = var.project_id
   filter  = "resource.type=\"cloud_run_job\" AND severity>=ERROR"
 
+  label_extractors = {
+    "environment" = "REGEXP_EXTRACT(resource.labels.job_name, \".*-(dev|prod)$\")"
+    "cnpj"        = "REGEXP_EXTRACT(resource.labels.job_name, \"vmhub-sync-([0-9]+)\")"
+  }
+
   metric_descriptor {
     metric_kind = "DELTA"
     value_type  = "INT64"
+    unit        = "1"
+
     labels {
       key         = "environment"
       value_type  = "STRING"
@@ -66,10 +72,6 @@ resource "google_logging_metric" "job_failures" {
       description = "CNPJ identifier"
     }
   }
-
-  depends_on = [
-    google_project_service.required_apis
-  ]
 }
 
 # monitoring: alert policy for job failures

@@ -2,7 +2,7 @@
 
 # cloud storage bucket for raw data
 resource "google_storage_bucket" "data_bucket" {
-  name                        = "vmhub-data-semantic-ai-${var.cnpj}-${var.environment}"
+  name                        = "vmhub-data-semantc-ai-${var.cnpj}-${var.environment}"
   location                    = var.region
   project                     = var.project_id
   uniform_bucket_level_access = true
@@ -30,6 +30,12 @@ resource "google_bigquery_dataset" "main" {
   location                  = var.region
   delete_contents_on_destroy = var.environment == "dev" ? true : false
 
+  lifecycle {
+    ignore_changes = [
+      access,
+    ]
+  }
+
   labels = {
     environment = var.environment
     cnpj        = var.cnpj
@@ -48,10 +54,13 @@ resource "google_cloud_run_v2_job" "sync_job" {
   project  = var.project_id
 
   template {
-    task_count = 1  # number of tasks to run in parallel
+    task_count = 1
     template {
       max_retries = 3
+      timeout     = "${var.timeout_seconds}s"
       
+      service_account = var.service_account
+
       containers {
         image = var.container_image
 
@@ -79,15 +88,18 @@ resource "google_cloud_run_v2_job" "sync_job" {
           value = var.cnpj
         }
       }
-
-      service_account = var.service_account
-      timeout = "${var.timeout_seconds}s"
     }
   }
 
   labels = {
     environment = var.environment
     cnpj        = var.cnpj
+  }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].template[0].containers[0].image,
+    ]
   }
 }
 
@@ -100,11 +112,11 @@ resource "google_cloud_scheduler_job" "sync_schedule" {
   time_zone = var.scheduler_timezone
 
   retry_config {
-    retry_count = 3
+    retry_count          = 3
     min_backoff_duration = "1s"
     max_backoff_duration = "10s"
-    max_retry_duration = "30s"
-    max_doublings = 2
+    max_retry_duration   = "30s"
+    max_doublings       = 2
   }
 
   http_target {
@@ -115,4 +127,8 @@ resource "google_cloud_scheduler_job" "sync_schedule" {
       service_account_email = var.service_account
     }
   }
+
+  depends_on = [
+    google_cloud_run_v2_job.sync_job
+  ]
 }
