@@ -32,15 +32,11 @@ terraform.rc
 # ignore lock files
 .terraform.lock.hcl
 
-# ignore mac system files
+# mac/os
 .DS_Store
 
-# ignore editor files
-.vscode/
-.idea/
+# editor directories and files
+.idea
+.vscode
 *.swp
 *.swo
-
-# ignore local environment files
-.env
-.env.*

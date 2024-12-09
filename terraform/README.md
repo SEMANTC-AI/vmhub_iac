@@ -1,96 +1,74 @@
-# VMHub Infrastructure
+# VMHub Data Sync Infrastructure 🔄
 
-This repository contains Terraform configurations for deploying and managing the VMHub infrastructure on Google Cloud Platform.
+## Overview 🎯
+Cloud infrastructure for synchronizing VMHub data with BigQuery, enabling automated messaging through WhatsApp Business API.
 
-## Project Structure
+## Architecture 🏗️
 
+```
+User → Firebase Auth → Firestore → Cloud Run Job → BigQuery
+                                             ├─→ Cloud Storage
+                                             └─→ WhatsApp API
+```
+
+## Project Structure 📁
 ```
 terraform/
-├── environments/           # Environment-specific configurations
-│   ├── dev/               # Development environment
-│   └── prod/              # Production environment
-├── modules/               # Reusable Terraform modules
-│   ├── cloud-run-job/     # Cloud Run Job configuration
-│   ├── scheduler/         # Cloud Scheduler configuration
-│   └── service-accounts/  # Service account management
+├── environments/          
+│   ├── dev/              # Development configs
+│   └── prod/             # Production configs
+├── modules/              
+│   ├── service-account/  # Main service account
+│   ├── sync-job/         # Per-CNPJ resources
+│   └── base-infrastructure/  # Project-level setup
 ```
 
-## Prerequisites
+## Resources Per CNPJ 📦
 
-- [Terraform](https://www.terraform.io/downloads.html) (>= 1.0.0)
-- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
-- Appropriate GCP permissions
-- Service account with necessary roles
+| Resource Type      | Naming Pattern           | Purpose                    |
+|-------------------|-------------------------|----------------------------|
+| Cloud Run Job     | `vmhub-sync-{cnpj}`    | Data synchronization      |
+| Storage Bucket    | `vmhub-data-{cnpj}`    | Raw data storage          |
+| BigQuery Dataset  | `CNPJ_{cnpj}_RAW`      | Data warehouse            |
+| Cloud Scheduler   | `vmhub-sync-{cnpj}`    | Automated sync triggers   |
 
-## Setup Instructions
+## Setup Steps 🚀
 
-1. Initialize Terraform:
-```bash
-cd environments/dev  # or prod
-terraform init
-```
+1. **Prerequisites**
+   - Terraform ≥ 1.0.0
+   - Google Cloud SDK
+   - Firebase project
+   - GCP permissions
 
-2. Review planned changes:
-```bash
-terraform plan
-```
+2. **Initialize**
+   ```bash
+   cd environments/dev  # or prod
+   terraform init
+   ```
 
-3. Apply changes:
-```bash
-terraform apply
-```
+3. **Deploy**
+   ```bash
+   terraform plan
+   terraform apply
+   ```
 
-## Module Documentation
+## Security 🔒
 
-### Cloud Run Job
-Manages the job configuration including:
-- Container image
-- CPU and memory allocation
-- Environment variables
-- Service account association
+- ✅ Tokens stored in Firestore
+- ✅ Least-privilege access
+- ✅ Regular security audits
+- ✅ Automated monitoring
 
-### Cloud Scheduler
-Configures scheduled execution of the job:
-- Schedule definition (cron format)
-- Retry configuration
-- Job parameters
+## Development Workflow 👨‍💻
 
-### Service Accounts
-Manages service accounts and IAM permissions for:
-- Cloud Run execution
-- GCS access
-- BigQuery operations
+1. Branch → `feature/your-feature`
+2. Test → Dev environment
+3. PR → Code review
+4. Merge → Main branch
 
-## Environment Variables
+## Contact 📧
 
-Required environment variables:
-- `VMHUB_API_KEY`
-- `VMHUB_CNPJ`
-- `VMHUB_BASE_URL`
-- `GCP_PROJECT_ID`
-- `GCS_BUCKET_NAME`
+For support or questions, contact the infrastructure team.
 
-## Maintenance
-
-- Review and update module versions regularly
-- Monitor resource usage and costs
-- Keep service account permissions up to date
-- Regularly backup Terraform state
-
-## Contributing
-
-1. Create a new branch for your changes
-2. Make your changes
-3. Test in the dev environment
-4. Submit a pull request
-
-## Security Notes
-
-- Avoid storing sensitive data in Terraform files
-- Use secure methods for managing secrets
-- Regularly rotate service account keys
-- Review IAM permissions periodically
-
-## Support
-
-For support, please contact the infrastructure team.
+---
+Built with ❤️ using Terraform and Google Cloud Platform
