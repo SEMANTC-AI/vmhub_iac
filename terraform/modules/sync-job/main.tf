@@ -48,7 +48,10 @@ resource "google_cloud_run_v2_job" "sync_job" {
   project  = var.project_id
 
   template {
+    task_count = 1  # number of tasks to run in parallel
     template {
+      max_retries = 3
+      
       containers {
         image = var.container_image
 

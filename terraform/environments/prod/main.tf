@@ -15,7 +15,7 @@ terraform {
   }
 
   backend "gcs" {
-    bucket = "YOUR_TERRAFORM_STATE_BUCKET"
+    bucket = "tf-state-semantic-ai-prod"
     prefix = "terraform/state/prod"
   }
 }
@@ -30,7 +30,6 @@ provider "google-beta" {
   region  = var.region
 }
 
-# base infrastructure setup
 module "base_infrastructure" {
   source = "../../modules/base-infrastructure"
 
@@ -39,7 +38,6 @@ module "base_infrastructure" {
   environment = "prod"
 }
 
-# service account setup
 module "service_account" {
   source = "../../modules/service-account"
 
@@ -48,8 +46,6 @@ module "service_account" {
   account_id   = "vmhub-sync-sa-prod"
 }
 
-# sync job resources - will be created by the application dynamically
-# this is just an example for a single cnpj
 module "sync_job" {
   source = "../../modules/sync-job"
 
@@ -58,16 +54,10 @@ module "sync_job" {
   environment     = "prod"
   cnpj            = var.example_cnpj
   service_account = module.service_account.service_account_email
-
-  # production-specific settings
-  min_instances    = var.min_instances
-  max_instances    = var.max_instances
+  container_image = var.container_image
+  
+  # production-specific overrides
   cpu_limit        = var.cpu_limit
   memory_limit     = var.memory_limit
   timeout_seconds  = var.timeout_seconds
-  
-  depends_on = [
-    module.base_infrastructure,
-    module.service_account
-  ]
 }
