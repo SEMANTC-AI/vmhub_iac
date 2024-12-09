@@ -15,7 +15,7 @@ terraform {
   }
 
   backend "gcs" {
-    bucket = "tf-state-semantic-ai-dev"
+    bucket = "tf-state-semantc-ai-dev"
     prefix = "terraform/state/dev"
   }
 }
