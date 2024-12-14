@@ -34,5 +34,4 @@ exports.config = {
         },
     },
 };
-exports.default = exports.config;
 //# sourceMappingURL=config.js.map

@@ -34,5 +34,3 @@ export const config: ConfigType = {
     },
   },
 };
-
-export default config;

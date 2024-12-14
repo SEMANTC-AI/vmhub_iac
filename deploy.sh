@@ -9,7 +9,7 @@ REGION=${3:-"us-central1"}
 # Validate inputs
 if [ -z "$ENVIRONMENT" ] || [ -z "$PROJECT_ID" ]; then
     echo "Usage: ./deploy.sh <environment> <project-id> [region]"
-    echo "Example: ./deploy.sh dev semantc-ai-dev us-central1"
+    echo "Example: ./deploy.sh dev semantc-ai us-central1"
     exit 1
 fi
 

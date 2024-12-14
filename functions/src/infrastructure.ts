@@ -5,7 +5,7 @@ import { BigQuery } from "@google-cloud/bigquery";
 import { JobsClient } from "@google-cloud/run/build/src/v2";
 import { CloudSchedulerClient } from "@google-cloud/scheduler";
 import { InfrastructureError } from "./types";
-import config from "./config";
+import { config } from "./config";
 
 /**
  * Provisioner class for handling GCP infrastructure setup
@@ -31,10 +31,11 @@ export class InfrastructureProvisioner {
   }
 
   /**
-   * Creates a new GCS bucket for data storage
-   * @param cnpj - Company identifier
-   * @param userEmail - User's email for permissions
-   */
+    * Creates a new GCS bucket for data storage
+    * @param {string} cnpj - Company identifier
+    * @param {string} userEmail - User's email for permissions
+    * @return {Promise<void>}
+    */
   async createBucket(cnpj: string, userEmail: string): Promise<void> {
     const bucketName = `vmhub-data-semantc-ai-${cnpj}-${this.environment}`;
     try {
@@ -83,10 +84,11 @@ export class InfrastructureProvisioner {
   }
 
   /**
-   * Creates BigQuery datasets for raw and campaign data
-   * @param cnpj - Company identifier
-   * @param userEmail - User's email for permissions
-   */
+    * Creates BigQuery datasets for raw and campaign data
+    * @param {string} cnpj - Company identifier
+    * @param {string} userEmail - User's email for permissions
+    * @return {Promise<void>}
+    */
   async createDataset(cnpj: string, userEmail: string): Promise<void> {
     const rawDatasetId = `CNPJ_${cnpj}_RAW`;
     const campaignDatasetId = `CNPJ_${cnpj}_CAMPAIGN`;
@@ -149,9 +151,10 @@ export class InfrastructureProvisioner {
 
   /**
    * Creates required tables in BigQuery datasets
-   * @param rawDatasetId - Raw dataset identifier
-   * @param campaignDatasetId - Campaign dataset identifier
-   */
+    * @param {string} rawDatasetId - Raw dataset identifier
+    * @param {string} campaignDatasetId - Campaign dataset identifier
+    * @return {Promise<void>}
+    */
   private async createTables(rawDatasetId: string, campaignDatasetId: string): Promise<void> {
     try {
       await this.bigquery.dataset(rawDatasetId).createTable("clientes", {
@@ -204,9 +207,10 @@ export class InfrastructureProvisioner {
   }
 
   /**
-   * Creates a Cloud Run job for data synchronization
-   * @param cnpj - Company identifier
-   */
+    * Creates a Cloud Run job for data synchronization
+    * @param {string} cnpj - Company identifier
+    * @return {Promise<void>}
+    */
   async createCloudRunJob(cnpj: string): Promise<void> {
     const name = `vmhub-sync-${cnpj}`;
     const parent = `projects/${this.projectId}/locations/${config.region}`;
@@ -254,7 +258,8 @@ export class InfrastructureProvisioner {
 
   /**
    * Creates a Cloud Scheduler job for periodic sync
-   * @param cnpj - Company identifier
+   * @param {string} cnpj - Company identifier
+   * @return {Promise<void>}
    */
   async createScheduler(cnpj: string): Promise<void> {
     const name = `vmhub-sync-schedule-${cnpj}`;
@@ -293,9 +298,10 @@ export class InfrastructureProvisioner {
   }
 
   /**
-   * Triggers initial data synchronization
-   * @param cnpj - Company identifier
-   */
+    * Triggers initial data synchronization
+    * @param {string} cnpj - Company identifier
+    * @return {Promise<void>}
+    */
   async triggerInitialSync(cnpj: string): Promise<void> {
     const name = `projects/${this.projectId}/locations/${config.region}/jobs/vmhub-sync-${cnpj}`;
 
@@ -311,11 +317,11 @@ export class InfrastructureProvisioner {
   }
 
   /**
-   * Provisions all required infrastructure components
-   * @param cnpj - Company identifier
-   * @param userEmail - User's email for permissions
-   * @return Promise<boolean> - Success status
-   */
+    * Provisions all required infrastructure components
+    * @param {string} cnpj - Company identifier
+    * @param {string} userEmail - User's email for permissions
+    * @return {Promise<boolean>} Success status of the provisioning
+    */
   async provision(cnpj: string, userEmail: string): Promise<boolean> {
     console.log(`Starting provisioning for CNPJ ${cnpj}`);
     try {
@@ -333,10 +339,10 @@ export class InfrastructureProvisioner {
   }
 
   /**
-   * Handles error transformation
-   * @param error - Raw error
-   * @return InfrastructureError
-   */
+    * Handles error transformation
+    * @param {unknown} error - Raw error to be processed
+    * @return {InfrastructureError} Standardized error format
+    */
   private handleError(error: unknown): InfrastructureError {
     if (error instanceof Error) {
       return {

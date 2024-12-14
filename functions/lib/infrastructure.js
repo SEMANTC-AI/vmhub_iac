@@ -1,15 +1,12 @@
 "use strict";
 // src/infrastructure.ts
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InfrastructureProvisioner = void 0;
 const storage_1 = require("@google-cloud/storage");
 const bigquery_1 = require("@google-cloud/bigquery");
 const v2_1 = require("@google-cloud/run/build/src/v2");
 const scheduler_1 = require("@google-cloud/scheduler");
-const config_1 = __importDefault(require("./config"));
+const config_1 = require("./config");
 /**
  * Provisioner class for handling GCP infrastructure setup
  */
@@ -18,23 +15,24 @@ class InfrastructureProvisioner {
      * Initialize the infrastructure provisioner
      */
     constructor() {
-        this.projectId = config_1.default.projectId;
-        this.environment = config_1.default.environment;
+        this.projectId = config_1.config.projectId;
+        this.environment = config_1.config.environment;
         this.storage = new storage_1.Storage();
         this.bigquery = new bigquery_1.BigQuery();
         this.cloudRun = new v2_1.JobsClient();
         this.scheduler = new scheduler_1.CloudSchedulerClient();
     }
     /**
-     * Creates a new GCS bucket for data storage
-     * @param cnpj - Company identifier
-     * @param userEmail - User's email for permissions
-     */
+      * Creates a new GCS bucket for data storage
+      * @param {string} cnpj - Company identifier
+      * @param {string} userEmail - User's email for permissions
+      * @return {Promise<void>}
+      */
     async createBucket(cnpj, userEmail) {
         const bucketName = `vmhub-data-semantc-ai-${cnpj}-${this.environment}`;
         try {
             const [bucket] = await this.storage.createBucket(bucketName, {
-                location: config_1.default.resourceDefaults.storage.location,
+                location: config_1.config.resourceDefaults.storage.location,
                 uniformBucketLevelAccess: true,
                 labels: {
                     environment: this.environment,
@@ -45,7 +43,7 @@ class InfrastructureProvisioner {
                         {
                             action: { type: "Delete" },
                             condition: {
-                                age: config_1.default.resourceDefaults.storage.retentionDays,
+                                age: config_1.config.resourceDefaults.storage.retentionDays,
                             },
                         },
                     ],
@@ -59,7 +57,7 @@ class InfrastructureProvisioner {
                     },
                     {
                         role: "roles/storage.admin",
-                        members: [`user:${config_1.default.adminEmail}`],
+                        members: [`user:${config_1.config.adminEmail}`],
                     },
                 ],
             });
@@ -75,16 +73,17 @@ class InfrastructureProvisioner {
         }
     }
     /**
-     * Creates BigQuery datasets for raw and campaign data
-     * @param cnpj - Company identifier
-     * @param userEmail - User's email for permissions
-     */
+      * Creates BigQuery datasets for raw and campaign data
+      * @param {string} cnpj - Company identifier
+      * @param {string} userEmail - User's email for permissions
+      * @return {Promise<void>}
+      */
     async createDataset(cnpj, userEmail) {
         const rawDatasetId = `CNPJ_${cnpj}_RAW`;
         const campaignDatasetId = `CNPJ_${cnpj}_CAMPAIGN`;
         try {
             await this.bigquery.createDataset(rawDatasetId, {
-                location: config_1.default.resourceDefaults.bigquery.location,
+                location: config_1.config.resourceDefaults.bigquery.location,
                 labels: {
                     environment: this.environment,
                     cnpj: cnpj,
@@ -96,7 +95,7 @@ class InfrastructureProvisioner {
             rawMetadata.access = [
                 {
                     role: "WRITER",
-                    userByEmail: config_1.default.adminEmail,
+                    userByEmail: config_1.config.adminEmail,
                 },
                 {
                     role: "READER",
@@ -105,7 +104,7 @@ class InfrastructureProvisioner {
             ];
             await rawDataset.setMetadata(rawMetadata);
             await this.bigquery.createDataset(campaignDatasetId, {
-                location: config_1.default.resourceDefaults.bigquery.location,
+                location: config_1.config.resourceDefaults.bigquery.location,
                 labels: {
                     environment: this.environment,
                     cnpj: cnpj,
@@ -117,7 +116,7 @@ class InfrastructureProvisioner {
             campaignMetadata.access = [
                 {
                     role: "WRITER",
-                    userByEmail: config_1.default.adminEmail,
+                    userByEmail: config_1.config.adminEmail,
                 },
                 {
                     role: "READER",
@@ -135,9 +134,10 @@ class InfrastructureProvisioner {
     }
     /**
      * Creates required tables in BigQuery datasets
-     * @param rawDatasetId - Raw dataset identifier
-     * @param campaignDatasetId - Campaign dataset identifier
-     */
+      * @param {string} rawDatasetId - Raw dataset identifier
+      * @param {string} campaignDatasetId - Campaign dataset identifier
+      * @return {Promise<void>}
+      */
     async createTables(rawDatasetId, campaignDatasetId) {
         try {
             await this.bigquery.dataset(rawDatasetId).createTable("clientes", {
@@ -188,12 +188,13 @@ class InfrastructureProvisioner {
         }
     }
     /**
-     * Creates a Cloud Run job for data synchronization
-     * @param cnpj - Company identifier
-     */
+      * Creates a Cloud Run job for data synchronization
+      * @param {string} cnpj - Company identifier
+      * @return {Promise<void>}
+      */
     async createCloudRunJob(cnpj) {
         const name = `vmhub-sync-${cnpj}`;
-        const parent = `projects/${this.projectId}/locations/${config_1.default.region}`;
+        const parent = `projects/${this.projectId}/locations/${config_1.config.region}`;
         try {
             const job = {
                 parent,
@@ -207,7 +208,7 @@ class InfrastructureProvisioner {
                         taskCount: 1,
                         template: {
                             containers: [{
-                                    image: config_1.default.resourceDefaults.cloudRun.containerImage,
+                                    image: config_1.config.resourceDefaults.cloudRun.containerImage,
                                     env: [
                                         { name: "CNPJ", value: cnpj },
                                         { name: "ENVIRONMENT", value: this.environment },
@@ -215,8 +216,8 @@ class InfrastructureProvisioner {
                                     ],
                                     resources: {
                                         limits: {
-                                            cpu: config_1.default.resourceDefaults.cloudRun.cpu,
-                                            memory: config_1.default.resourceDefaults.cloudRun.memory,
+                                            cpu: config_1.config.resourceDefaults.cloudRun.cpu,
+                                            memory: config_1.config.resourceDefaults.cloudRun.memory,
                                         },
                                     },
                                 }],
@@ -235,20 +236,21 @@ class InfrastructureProvisioner {
     }
     /**
      * Creates a Cloud Scheduler job for periodic sync
-     * @param cnpj - Company identifier
+     * @param {string} cnpj - Company identifier
+     * @return {Promise<void>}
      */
     async createScheduler(cnpj) {
         const name = `vmhub-sync-schedule-${cnpj}`;
-        const parent = `projects/${this.projectId}/locations/${config_1.default.region}`;
+        const parent = `projects/${this.projectId}/locations/${config_1.config.region}`;
         try {
             const jobRequest = {
                 parent,
                 job: {
                     name: `${parent}/jobs/${name}`,
-                    schedule: config_1.default.resourceDefaults.scheduler.schedule,
-                    timeZone: config_1.default.resourceDefaults.scheduler.timezone,
+                    schedule: config_1.config.resourceDefaults.scheduler.schedule,
+                    timeZone: config_1.config.resourceDefaults.scheduler.timezone,
                     httpTarget: {
-                        uri: `https://${config_1.default.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/` +
+                        uri: `https://${config_1.config.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/` +
                             `${this.projectId}/jobs/vmhub-sync-${cnpj}:run`,
                         httpMethod: "POST",
                         headers: {
@@ -256,9 +258,9 @@ class InfrastructureProvisioner {
                         },
                     },
                     retryConfig: {
-                        retryCount: config_1.default.resourceDefaults.scheduler.retryCount,
+                        retryCount: config_1.config.resourceDefaults.scheduler.retryCount,
                         maxRetryDuration: {
-                            seconds: parseInt(config_1.default.resourceDefaults.scheduler.maxRetryDuration),
+                            seconds: parseInt(config_1.config.resourceDefaults.scheduler.maxRetryDuration),
                         },
                     },
                 },
@@ -272,11 +274,12 @@ class InfrastructureProvisioner {
         }
     }
     /**
-     * Triggers initial data synchronization
-     * @param cnpj - Company identifier
-     */
+      * Triggers initial data synchronization
+      * @param {string} cnpj - Company identifier
+      * @return {Promise<void>}
+      */
     async triggerInitialSync(cnpj) {
-        const name = `projects/${this.projectId}/locations/${config_1.default.region}/jobs/vmhub-sync-${cnpj}`;
+        const name = `projects/${this.projectId}/locations/${config_1.config.region}/jobs/vmhub-sync-${cnpj}`;
         try {
             const [operation] = await this.cloudRun.runJob({ name });
             const [response] = await operation.promise();
@@ -288,11 +291,11 @@ class InfrastructureProvisioner {
         }
     }
     /**
-     * Provisions all required infrastructure components
-     * @param cnpj - Company identifier
-     * @param userEmail - User's email for permissions
-     * @returns Promise<boolean> - Success status
-     */
+      * Provisions all required infrastructure components
+      * @param {string} cnpj - Company identifier
+      * @param {string} userEmail - User's email for permissions
+      * @return {Promise<boolean>} Success status of the provisioning
+      */
     async provision(cnpj, userEmail) {
         console.log(`Starting provisioning for CNPJ ${cnpj}`);
         try {
@@ -310,10 +313,10 @@ class InfrastructureProvisioner {
         }
     }
     /**
-     * Handles error transformation
-     * @param error - Raw error
-     * @returns InfrastructureError
-     */
+      * Handles error transformation
+      * @param {unknown} error - Raw error to be processed
+      * @return {InfrastructureError} Standardized error format
+      */
     handleError(error) {
         if (error instanceof Error) {
             return Object.assign(Object.assign({}, error), { code: error.name, details: error.message });
