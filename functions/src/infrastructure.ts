@@ -1,12 +1,15 @@
-// functions/src/infrastructure.ts
+// src/infrastructure.ts
 
-import {Storage} from "@google-cloud/storage";
-import {BigQuery} from "@google-cloud/bigquery";
-import {JobsClient} from "@google-cloud/run/build/src/v2";
-import {CloudSchedulerClient} from "@google-cloud/scheduler";
-import {InfrastructureError} from "./types";
+import { Storage } from "@google-cloud/storage";
+import { BigQuery } from "@google-cloud/bigquery";
+import { JobsClient } from "@google-cloud/run/build/src/v2";
+import { CloudSchedulerClient } from "@google-cloud/scheduler";
+import { InfrastructureError } from "./types";
 import config from "./config";
 
+/**
+ * Provisioner class for handling GCP infrastructure setup
+ */
 export class InfrastructureProvisioner {
   private projectId: string;
   private environment: string;
@@ -15,6 +18,9 @@ export class InfrastructureProvisioner {
   private cloudRun: JobsClient;
   private scheduler: CloudSchedulerClient;
 
+  /**
+   * Initialize the infrastructure provisioner
+   */
   constructor() {
     this.projectId = config.projectId;
     this.environment = config.environment;
@@ -24,6 +30,11 @@ export class InfrastructureProvisioner {
     this.scheduler = new CloudSchedulerClient();
   }
 
+  /**
+   * Creates a new GCS bucket for data storage
+   * @param cnpj - Company identifier
+   * @param userEmail - User's email for permissions
+   */
   async createBucket(cnpj: string, userEmail: string): Promise<void> {
     const bucketName = `vmhub-data-semantc-ai-${cnpj}-${this.environment}`;
     try {
@@ -37,7 +48,7 @@ export class InfrastructureProvisioner {
         lifecycle: {
           rule: [
             {
-              action: {type: "Delete"},
+              action: { type: "Delete" },
               condition: {
                 age: config.resourceDefaults.storage.retentionDays,
               },
@@ -59,7 +70,6 @@ export class InfrastructureProvisioner {
         ],
       });
 
-      // Create necessary folders
       await Promise.all([
         this.storage.bucket(bucketName).file("vendas/").save(""),
         this.storage.bucket(bucketName).file("clientes/").save(""),
@@ -72,12 +82,16 @@ export class InfrastructureProvisioner {
     }
   }
 
+  /**
+   * Creates BigQuery datasets for raw and campaign data
+   * @param cnpj - Company identifier
+   * @param userEmail - User's email for permissions
+   */
   async createDataset(cnpj: string, userEmail: string): Promise<void> {
     const rawDatasetId = `CNPJ_${cnpj}_RAW`;
     const campaignDatasetId = `CNPJ_${cnpj}_CAMPAIGN`;
 
     try {
-      // Create RAW dataset
       await this.bigquery.createDataset(rawDatasetId, {
         location: config.resourceDefaults.bigquery.location,
         labels: {
@@ -87,7 +101,6 @@ export class InfrastructureProvisioner {
         },
       });
 
-      // Set RAW dataset permissions
       const [rawDataset] = await this.bigquery.dataset(rawDatasetId).get();
       const rawMetadata = rawDataset.metadata;
       rawMetadata.access = [
@@ -102,7 +115,6 @@ export class InfrastructureProvisioner {
       ];
       await rawDataset.setMetadata(rawMetadata);
 
-      // Create CAMPAIGN dataset
       await this.bigquery.createDataset(campaignDatasetId, {
         location: config.resourceDefaults.bigquery.location,
         labels: {
@@ -112,7 +124,6 @@ export class InfrastructureProvisioner {
         },
       });
 
-      // Set CAMPAIGN dataset permissions
       const [campaignDataset] = await this.bigquery.dataset(campaignDatasetId).get();
       const campaignMetadata = campaignDataset.metadata;
       campaignMetadata.access = [
@@ -127,7 +138,6 @@ export class InfrastructureProvisioner {
       ];
       await campaignDataset.setMetadata(campaignMetadata);
 
-      // Create tables
       await this.createTables(rawDatasetId, campaignDatasetId);
 
       console.log(`Datasets created successfully for CNPJ ${cnpj}`);
@@ -137,53 +147,53 @@ export class InfrastructureProvisioner {
     }
   }
 
+  /**
+   * Creates required tables in BigQuery datasets
+   * @param rawDatasetId - Raw dataset identifier
+   * @param campaignDatasetId - Campaign dataset identifier
+   */
   private async createTables(rawDatasetId: string, campaignDatasetId: string): Promise<void> {
-    const rawDataset = this.bigquery.dataset(rawDatasetId);
-    const campaignDataset = this.bigquery.dataset(campaignDatasetId);
-
     try {
-      // Create tables in RAW dataset
-      await rawDataset.createTable("clientes", {
+      await this.bigquery.dataset(rawDatasetId).createTable("clientes", {
         schema: {
           fields: [
-            {name: "id", type: "STRING"},
-            {name: "nome", type: "STRING"},
-            {name: "dataNascimento", type: "TIMESTAMP"},
-            {name: "cpf", type: "STRING"},
-            {name: "telefone", type: "STRING"},
-            {name: "email", type: "STRING"},
-            {name: "genero", type: "STRING"},
-            {name: "dataCadastro", type: "TIMESTAMP"},
-            {name: "primeiraCompra", type: "TIMESTAMP"},
-            {name: "source_system", type: "STRING"},
+            { name: "id", type: "STRING" },
+            { name: "nome", type: "STRING" },
+            { name: "dataNascimento", type: "TIMESTAMP" },
+            { name: "cpf", type: "STRING" },
+            { name: "telefone", type: "STRING" },
+            { name: "email", type: "STRING" },
+            { name: "genero", type: "STRING" },
+            { name: "dataCadastro", type: "TIMESTAMP" },
+            { name: "primeiraCompra", type: "TIMESTAMP" },
+            { name: "source_system", type: "STRING" },
           ],
         },
       });
 
-      await rawDataset.createTable("vendas", {
+      await this.bigquery.dataset(rawDatasetId).createTable("vendas", {
         schema: {
           fields: [
-            {name: "data", type: "TIMESTAMP"},
-            {name: "cpfCliente", type: "STRING"},
-            {name: "valor", type: "FLOAT"},
-            {name: "status", type: "STRING"},
-            {name: "tipoPagamento", type: "STRING"},
-            {name: "cupom", type: "STRING"},
-            {name: "source_system", type: "STRING"},
+            { name: "data", type: "TIMESTAMP" },
+            { name: "cpfCliente", type: "STRING" },
+            { name: "valor", type: "FLOAT" },
+            { name: "status", type: "STRING" },
+            { name: "tipoPagamento", type: "STRING" },
+            { name: "cupom", type: "STRING" },
+            { name: "source_system", type: "STRING" },
           ],
         },
       });
 
-      // Create tables in CAMPAIGN dataset
-      await campaignDataset.createTable("message_history", {
+      await this.bigquery.dataset(campaignDatasetId).createTable("message_history", {
         schema: {
           fields: [
-            {name: "user_id", type: "STRING"},
-            {name: "campaign_type", type: "STRING"},
-            {name: "sent_at", type: "TIMESTAMP"},
-            {name: "status", type: "STRING"},
-            {name: "message_content", type: "STRING"},
-            {name: "phone", type: "STRING"},
+            { name: "user_id", type: "STRING" },
+            { name: "campaign_type", type: "STRING" },
+            { name: "sent_at", type: "TIMESTAMP" },
+            { name: "status", type: "STRING" },
+            { name: "message_content", type: "STRING" },
+            { name: "phone", type: "STRING" },
           ],
         },
       });
@@ -193,6 +203,10 @@ export class InfrastructureProvisioner {
     }
   }
 
+  /**
+   * Creates a Cloud Run job for data synchronization
+   * @param cnpj - Company identifier
+   */
   async createCloudRunJob(cnpj: string): Promise<void> {
     const name = `vmhub-sync-${cnpj}`;
     const parent = `projects/${this.projectId}/locations/${config.region}`;
@@ -210,11 +224,11 @@ export class InfrastructureProvisioner {
             taskCount: 1,
             template: {
               containers: [{
-                image: config.resourceDefaults.cloudRun.containerImage.replace("PROJECT_ID", this.projectId),
+                image: config.resourceDefaults.cloudRun.containerImage,
                 env: [
-                  {name: "CNPJ", value: cnpj},
-                  {name: "ENVIRONMENT", value: this.environment},
-                  {name: "PROJECT_ID", value: this.projectId},
+                  { name: "CNPJ", value: cnpj },
+                  { name: "ENVIRONMENT", value: this.environment },
+                  { name: "PROJECT_ID", value: this.projectId },
                 ],
                 resources: {
                   limits: {
@@ -238,6 +252,10 @@ export class InfrastructureProvisioner {
     }
   }
 
+  /**
+   * Creates a Cloud Scheduler job for periodic sync
+   * @param cnpj - Company identifier
+   */
   async createScheduler(cnpj: string): Promise<void> {
     const name = `vmhub-sync-schedule-${cnpj}`;
     const parent = `projects/${this.projectId}/locations/${config.region}`;
@@ -250,7 +268,8 @@ export class InfrastructureProvisioner {
           schedule: config.resourceDefaults.scheduler.schedule,
           timeZone: config.resourceDefaults.scheduler.timezone,
           httpTarget: {
-            uri: `https://${config.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${this.projectId}/jobs/vmhub-sync-${cnpj}:run`,
+            uri: `https://${config.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/` +
+                 `${this.projectId}/jobs/vmhub-sync-${cnpj}:run`,
             httpMethod: "POST" as const,
             headers: {
               "User-Agent": "Google-Cloud-Scheduler",
@@ -273,15 +292,15 @@ export class InfrastructureProvisioner {
     }
   }
 
+  /**
+   * Triggers initial data synchronization
+   * @param cnpj - Company identifier
+   */
   async triggerInitialSync(cnpj: string): Promise<void> {
     const name = `projects/${this.projectId}/locations/${config.region}/jobs/vmhub-sync-${cnpj}`;
 
     try {
-      const request = {
-        name,
-      };
-
-      const [operation] = await this.cloudRun.runJob(request);
+      const [operation] = await this.cloudRun.runJob({ name });
       const [response] = await operation.promise();
 
       console.log(`Initial sync triggered for ${name}:`, response);
@@ -291,6 +310,12 @@ export class InfrastructureProvisioner {
     }
   }
 
+  /**
+   * Provisions all required infrastructure components
+   * @param cnpj - Company identifier
+   * @param userEmail - User's email for permissions
+   * @return Promise<boolean> - Success status
+   */
   async provision(cnpj: string, userEmail: string): Promise<boolean> {
     console.log(`Starting provisioning for CNPJ ${cnpj}`);
     try {
@@ -307,7 +332,12 @@ export class InfrastructureProvisioner {
     }
   }
 
-  private handleError(error: any): InfrastructureError {
+  /**
+   * Handles error transformation
+   * @param error - Raw error
+   * @return InfrastructureError
+   */
+  private handleError(error: unknown): InfrastructureError {
     if (error instanceof Error) {
       return {
         ...error,

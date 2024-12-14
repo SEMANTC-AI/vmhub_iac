@@ -1,6 +1,6 @@
-// functions/src/config.ts
+// src/config.ts
 
-import {ConfigType} from "./types";
+import { ConfigType } from "./types";
 
 export const config: ConfigType = {
   projectId: process.env.PROJECT_ID || "",

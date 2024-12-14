@@ -1,5 +1,5 @@
 "use strict";
-// functions/src/infrastructure.ts
+// src/infrastructure.ts
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -10,7 +10,13 @@ const bigquery_1 = require("@google-cloud/bigquery");
 const v2_1 = require("@google-cloud/run/build/src/v2");
 const scheduler_1 = require("@google-cloud/scheduler");
 const config_1 = __importDefault(require("./config"));
+/**
+ * Provisioner class for handling GCP infrastructure setup
+ */
 class InfrastructureProvisioner {
+    /**
+     * Initialize the infrastructure provisioner
+     */
     constructor() {
         this.projectId = config_1.default.projectId;
         this.environment = config_1.default.environment;
@@ -19,6 +25,11 @@ class InfrastructureProvisioner {
         this.cloudRun = new v2_1.JobsClient();
         this.scheduler = new scheduler_1.CloudSchedulerClient();
     }
+    /**
+     * Creates a new GCS bucket for data storage
+     * @param cnpj - Company identifier
+     * @param userEmail - User's email for permissions
+     */
     async createBucket(cnpj, userEmail) {
         const bucketName = `vmhub-data-semantc-ai-${cnpj}-${this.environment}`;
         try {
@@ -27,35 +38,34 @@ class InfrastructureProvisioner {
                 uniformBucketLevelAccess: true,
                 labels: {
                     environment: this.environment,
-                    cnpj: cnpj
+                    cnpj: cnpj,
                 },
                 lifecycle: {
                     rule: [
                         {
-                            action: { type: 'Delete' },
+                            action: { type: "Delete" },
                             condition: {
-                                age: config_1.default.resourceDefaults.storage.retentionDays
-                            }
-                        }
-                    ]
-                }
+                                age: config_1.default.resourceDefaults.storage.retentionDays,
+                            },
+                        },
+                    ],
+                },
             });
             await bucket.iam.setPolicy({
                 bindings: [
                     {
-                        role: 'roles/storage.objectViewer',
-                        members: [`user:${userEmail}`]
+                        role: "roles/storage.objectViewer",
+                        members: [`user:${userEmail}`],
                     },
                     {
-                        role: 'roles/storage.admin',
-                        members: [`user:${config_1.default.adminEmail}`]
-                    }
-                ]
+                        role: "roles/storage.admin",
+                        members: [`user:${config_1.default.adminEmail}`],
+                    },
+                ],
             });
-            // Create necessary folders
             await Promise.all([
-                this.storage.bucket(bucketName).file('vendas/').save(''),
-                this.storage.bucket(bucketName).file('clientes/').save('')
+                this.storage.bucket(bucketName).file("vendas/").save(""),
+                this.storage.bucket(bucketName).file("clientes/").save(""),
             ]);
             console.log(`Bucket ${bucketName} created successfully`);
         }
@@ -64,57 +74,57 @@ class InfrastructureProvisioner {
             throw this.handleError(error);
         }
     }
+    /**
+     * Creates BigQuery datasets for raw and campaign data
+     * @param cnpj - Company identifier
+     * @param userEmail - User's email for permissions
+     */
     async createDataset(cnpj, userEmail) {
         const rawDatasetId = `CNPJ_${cnpj}_RAW`;
         const campaignDatasetId = `CNPJ_${cnpj}_CAMPAIGN`;
         try {
-            // Create RAW dataset
             await this.bigquery.createDataset(rawDatasetId, {
                 location: config_1.default.resourceDefaults.bigquery.location,
                 labels: {
                     environment: this.environment,
                     cnpj: cnpj,
-                    type: 'raw'
-                }
+                    type: "raw",
+                },
             });
-            // Set RAW dataset permissions
             const [rawDataset] = await this.bigquery.dataset(rawDatasetId).get();
             const rawMetadata = rawDataset.metadata;
             rawMetadata.access = [
                 {
-                    role: 'WRITER',
-                    userByEmail: config_1.default.adminEmail
+                    role: "WRITER",
+                    userByEmail: config_1.default.adminEmail,
                 },
                 {
-                    role: 'READER',
-                    userByEmail: userEmail
-                }
+                    role: "READER",
+                    userByEmail: userEmail,
+                },
             ];
             await rawDataset.setMetadata(rawMetadata);
-            // Create CAMPAIGN dataset
             await this.bigquery.createDataset(campaignDatasetId, {
                 location: config_1.default.resourceDefaults.bigquery.location,
                 labels: {
                     environment: this.environment,
                     cnpj: cnpj,
-                    type: 'campaign'
-                }
+                    type: "campaign",
+                },
             });
-            // Set CAMPAIGN dataset permissions
             const [campaignDataset] = await this.bigquery.dataset(campaignDatasetId).get();
             const campaignMetadata = campaignDataset.metadata;
             campaignMetadata.access = [
                 {
-                    role: 'WRITER',
-                    userByEmail: config_1.default.adminEmail
+                    role: "WRITER",
+                    userByEmail: config_1.default.adminEmail,
                 },
                 {
-                    role: 'READER',
-                    userByEmail: userEmail
-                }
+                    role: "READER",
+                    userByEmail: userEmail,
+                },
             ];
             await campaignDataset.setMetadata(campaignMetadata);
-            // Create tables
             await this.createTables(rawDatasetId, campaignDatasetId);
             console.log(`Datasets created successfully for CNPJ ${cnpj}`);
         }
@@ -123,59 +133,64 @@ class InfrastructureProvisioner {
             throw this.handleError(error);
         }
     }
+    /**
+     * Creates required tables in BigQuery datasets
+     * @param rawDatasetId - Raw dataset identifier
+     * @param campaignDatasetId - Campaign dataset identifier
+     */
     async createTables(rawDatasetId, campaignDatasetId) {
-        const rawDataset = this.bigquery.dataset(rawDatasetId);
-        const campaignDataset = this.bigquery.dataset(campaignDatasetId);
         try {
-            // Create tables in RAW dataset
-            await rawDataset.createTable('clientes', {
+            await this.bigquery.dataset(rawDatasetId).createTable("clientes", {
                 schema: {
                     fields: [
-                        { name: 'id', type: 'STRING' },
-                        { name: 'nome', type: 'STRING' },
-                        { name: 'dataNascimento', type: 'TIMESTAMP' },
-                        { name: 'cpf', type: 'STRING' },
-                        { name: 'telefone', type: 'STRING' },
-                        { name: 'email', type: 'STRING' },
-                        { name: 'genero', type: 'STRING' },
-                        { name: 'dataCadastro', type: 'TIMESTAMP' },
-                        { name: 'primeiraCompra', type: 'TIMESTAMP' },
-                        { name: 'source_system', type: 'STRING' }
-                    ]
-                }
+                        { name: "id", type: "STRING" },
+                        { name: "nome", type: "STRING" },
+                        { name: "dataNascimento", type: "TIMESTAMP" },
+                        { name: "cpf", type: "STRING" },
+                        { name: "telefone", type: "STRING" },
+                        { name: "email", type: "STRING" },
+                        { name: "genero", type: "STRING" },
+                        { name: "dataCadastro", type: "TIMESTAMP" },
+                        { name: "primeiraCompra", type: "TIMESTAMP" },
+                        { name: "source_system", type: "STRING" },
+                    ],
+                },
             });
-            await rawDataset.createTable('vendas', {
+            await this.bigquery.dataset(rawDatasetId).createTable("vendas", {
                 schema: {
                     fields: [
-                        { name: 'data', type: 'TIMESTAMP' },
-                        { name: 'cpfCliente', type: 'STRING' },
-                        { name: 'valor', type: 'FLOAT' },
-                        { name: 'status', type: 'STRING' },
-                        { name: 'tipoPagamento', type: 'STRING' },
-                        { name: 'cupom', type: 'STRING' },
-                        { name: 'source_system', type: 'STRING' }
-                    ]
-                }
+                        { name: "data", type: "TIMESTAMP" },
+                        { name: "cpfCliente", type: "STRING" },
+                        { name: "valor", type: "FLOAT" },
+                        { name: "status", type: "STRING" },
+                        { name: "tipoPagamento", type: "STRING" },
+                        { name: "cupom", type: "STRING" },
+                        { name: "source_system", type: "STRING" },
+                    ],
+                },
             });
-            // Create tables in CAMPAIGN dataset
-            await campaignDataset.createTable('message_history', {
+            await this.bigquery.dataset(campaignDatasetId).createTable("message_history", {
                 schema: {
                     fields: [
-                        { name: 'user_id', type: 'STRING' },
-                        { name: 'campaign_type', type: 'STRING' },
-                        { name: 'sent_at', type: 'TIMESTAMP' },
-                        { name: 'status', type: 'STRING' },
-                        { name: 'message_content', type: 'STRING' },
-                        { name: 'phone', type: 'STRING' }
-                    ]
-                }
+                        { name: "user_id", type: "STRING" },
+                        { name: "campaign_type", type: "STRING" },
+                        { name: "sent_at", type: "TIMESTAMP" },
+                        { name: "status", type: "STRING" },
+                        { name: "message_content", type: "STRING" },
+                        { name: "phone", type: "STRING" },
+                    ],
+                },
             });
         }
         catch (error) {
-            console.error('Error creating tables:', error);
+            console.error("Error creating tables:", error);
             throw this.handleError(error);
         }
     }
+    /**
+     * Creates a Cloud Run job for data synchronization
+     * @param cnpj - Company identifier
+     */
     async createCloudRunJob(cnpj) {
         const name = `vmhub-sync-${cnpj}`;
         const parent = `projects/${this.projectId}/locations/${config_1.default.region}`;
@@ -186,28 +201,28 @@ class InfrastructureProvisioner {
                     name: `${parent}/jobs/${name}`,
                     labels: {
                         environment: this.environment,
-                        cnpj: cnpj
+                        cnpj: cnpj,
                     },
                     template: {
                         taskCount: 1,
                         template: {
                             containers: [{
-                                    image: config_1.default.resourceDefaults.cloudRun.containerImage.replace('PROJECT_ID', this.projectId),
+                                    image: config_1.default.resourceDefaults.cloudRun.containerImage,
                                     env: [
-                                        { name: 'CNPJ', value: cnpj },
-                                        { name: 'ENVIRONMENT', value: this.environment },
-                                        { name: 'PROJECT_ID', value: this.projectId }
+                                        { name: "CNPJ", value: cnpj },
+                                        { name: "ENVIRONMENT", value: this.environment },
+                                        { name: "PROJECT_ID", value: this.projectId },
                                     ],
                                     resources: {
                                         limits: {
                                             cpu: config_1.default.resourceDefaults.cloudRun.cpu,
-                                            memory: config_1.default.resourceDefaults.cloudRun.memory
-                                        }
-                                    }
-                                }]
-                        }
-                    }
-                }
+                                            memory: config_1.default.resourceDefaults.cloudRun.memory,
+                                        },
+                                    },
+                                }],
+                        },
+                    },
+                },
             };
             const [operation] = await this.cloudRun.createJob(job);
             const [response] = await operation.promise();
@@ -218,6 +233,10 @@ class InfrastructureProvisioner {
             throw this.handleError(error);
         }
     }
+    /**
+     * Creates a Cloud Scheduler job for periodic sync
+     * @param cnpj - Company identifier
+     */
     async createScheduler(cnpj) {
         const name = `vmhub-sync-schedule-${cnpj}`;
         const parent = `projects/${this.projectId}/locations/${config_1.default.region}`;
@@ -229,19 +248,20 @@ class InfrastructureProvisioner {
                     schedule: config_1.default.resourceDefaults.scheduler.schedule,
                     timeZone: config_1.default.resourceDefaults.scheduler.timezone,
                     httpTarget: {
-                        uri: `https://${config_1.default.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${this.projectId}/jobs/vmhub-sync-${cnpj}:run`,
-                        httpMethod: 'POST',
+                        uri: `https://${config_1.default.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/` +
+                            `${this.projectId}/jobs/vmhub-sync-${cnpj}:run`,
+                        httpMethod: "POST",
                         headers: {
-                            'User-Agent': 'Google-Cloud-Scheduler'
-                        }
+                            "User-Agent": "Google-Cloud-Scheduler",
+                        },
                     },
                     retryConfig: {
                         retryCount: config_1.default.resourceDefaults.scheduler.retryCount,
                         maxRetryDuration: {
-                            seconds: parseInt(config_1.default.resourceDefaults.scheduler.maxRetryDuration)
-                        }
-                    }
-                }
+                            seconds: parseInt(config_1.default.resourceDefaults.scheduler.maxRetryDuration),
+                        },
+                    },
+                },
             };
             await this.scheduler.createJob(jobRequest);
             console.log(`Cloud Scheduler job ${name} created successfully`);
@@ -251,13 +271,14 @@ class InfrastructureProvisioner {
             throw this.handleError(error);
         }
     }
+    /**
+     * Triggers initial data synchronization
+     * @param cnpj - Company identifier
+     */
     async triggerInitialSync(cnpj) {
         const name = `projects/${this.projectId}/locations/${config_1.default.region}/jobs/vmhub-sync-${cnpj}`;
         try {
-            const request = {
-                name
-            };
-            const [operation] = await this.cloudRun.runJob(request);
+            const [operation] = await this.cloudRun.runJob({ name });
             const [response] = await operation.promise();
             console.log(`Initial sync triggered for ${name}:`, response);
         }
@@ -266,6 +287,12 @@ class InfrastructureProvisioner {
             throw this.handleError(error);
         }
     }
+    /**
+     * Provisions all required infrastructure components
+     * @param cnpj - Company identifier
+     * @param userEmail - User's email for permissions
+     * @returns Promise<boolean> - Success status
+     */
     async provision(cnpj, userEmail) {
         console.log(`Starting provisioning for CNPJ ${cnpj}`);
         try {
@@ -282,11 +309,16 @@ class InfrastructureProvisioner {
             throw this.handleError(error);
         }
     }
+    /**
+     * Handles error transformation
+     * @param error - Raw error
+     * @returns InfrastructureError
+     */
     handleError(error) {
         if (error instanceof Error) {
             return Object.assign(Object.assign({}, error), { code: error.name, details: error.message });
         }
-        return new Error('Unknown error occurred');
+        return new Error("Unknown error occurred");
     }
 }
 exports.InfrastructureProvisioner = InfrastructureProvisioner;

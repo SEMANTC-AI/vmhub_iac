@@ -1,13 +1,15 @@
+// src/types.ts
+
 export interface ConfigType {
   projectId: string;
   environment: string;
   region: string;
   adminEmail: string;
   resourceDefaults: {
-      cloudRun: CloudRunConfig;
-      scheduler: SchedulerConfig;
-      storage: StorageConfig;
-      bigquery: BigQueryConfig;
+    cloudRun: CloudRunConfig;
+    scheduler: SchedulerConfig;
+    storage: StorageConfig;
+    bigquery: BigQueryConfig;
   };
 }
 
@@ -34,8 +36,8 @@ interface StorageConfig {
 interface BigQueryConfig {
   location: string;
   defaultRoles: {
-      admin: string;
-      user: string;
+    admin: string;
+    user: string;
   };
 }
 
@@ -46,33 +48,33 @@ export interface UserData {
 
 export interface InfrastructureError extends Error {
   code?: string;
-  details?: any;
+  details?: unknown;
 }
 
 export interface CloudRunJob {
   name: string;
   template: {
-      template: {
-          containers: Array<{
-              image: string;
-              env: Array<{
-                  name: string;
-                  value: string;
-              }>;
-              resources: {
-                  limits: {
-                      cpu: string;
-                      memory: string;
-                  };
-              };
-          }>;
-          maxRetries: number;
-          timeout: string;
-      };
+    template: {
+      containers: Array<{
+        image: string;
+        env: Array<{
+          name: string;
+          value: string;
+        }>;
+        resources: {
+          limits: {
+            cpu: string;
+            memory: string;
+          };
+        };
+      }>;
+      maxRetries: number;
+      timeout: string;
+    };
   };
   labels: {
-      environment: string;
-      cnpj: string;
+    environment: string;
+    cnpj: string;
   };
 }
 
@@ -81,11 +83,11 @@ export interface SchedulerJob {
   schedule: string;
   timeZone: string;
   httpTarget: {
-      uri: string;
-      httpMethod: string;
+    uri: string;
+    httpMethod: string;
   };
   retryConfig: {
-      retryCount: number;
-      maxRetryDuration: string;
+    retryCount: number;
+    maxRetryDuration: string;
   };
 }

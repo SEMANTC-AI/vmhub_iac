@@ -1,31 +1,31 @@
 # functions/terraform/variables.tf
 
 variable "project_id" {
-    description = "The GCP project ID"
+    description = "THE GCP PROJECT ID"
     type        = string
 }
 
 variable "environment" {
-    description = "Environment name (dev/prod)"
+    description = "ENVIRONMENT NAME (DEV/PROD)"
     type        = string
     validation {
         condition     = contains(["dev", "prod"], var.environment)
-        error_message = "Environment must be either 'dev' or 'prod'."
+        error_message = "ENVIRONMENT MUST BE EITHER 'DEV' OR 'PROD'."
     }
 }
 
 variable "region" {
-    description = "The GCP region for the function"
+    description = "THE GCP REGION FOR THE FUNCTION"
     type        = string
     default     = "us-central1"
 }
 
 variable "function_service_account" {
-    description = "The service account email to run the function"
+    description = "THE SERVICE ACCOUNT EMAIL TO RUN THE FUNCTION"
     type        = string
 }
 
 variable "admin_email" {
-    description = "The email address of the system admin"
+    description = "THE EMAIL ADDRESS OF THE SYSTEM ADMIN"
     type        = string
 }
