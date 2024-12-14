@@ -16,7 +16,7 @@ class InfrastructureProvisioner {
         this.environment = config_1.default.environment;
         this.storage = new storage_1.Storage();
         this.bigquery = new bigquery_1.BigQuery();
-        this.cloudRun = new v2_1.CloudRunClient();
+        this.cloudRun = new v2_1.JobsClient();
         this.scheduler = new scheduler_1.CloudSchedulerClient();
     }
     async createBucket(cnpj, userEmail) {
@@ -126,86 +126,92 @@ class InfrastructureProvisioner {
     async createTables(rawDatasetId, campaignDatasetId) {
         const rawDataset = this.bigquery.dataset(rawDatasetId);
         const campaignDataset = this.bigquery.dataset(campaignDatasetId);
-        // Create tables in RAW dataset
-        await rawDataset.createTable('clientes', {
-            schema: {
-                fields: [
-                    { name: 'id', type: 'STRING' },
-                    { name: 'nome', type: 'STRING' },
-                    { name: 'dataNascimento', type: 'TIMESTAMP' },
-                    { name: 'cpf', type: 'STRING' },
-                    { name: 'telefone', type: 'STRING' },
-                    { name: 'email', type: 'STRING' },
-                    { name: 'genero', type: 'STRING' },
-                    { name: 'dataCadastro', type: 'TIMESTAMP' },
-                    { name: 'primeiraCompra', type: 'TIMESTAMP' },
-                    { name: 'source_system', type: 'STRING' }
-                ]
-            }
-        });
-        await rawDataset.createTable('vendas', {
-            schema: {
-                fields: [
-                    { name: 'data', type: 'TIMESTAMP' },
-                    { name: 'cpfCliente', type: 'STRING' },
-                    { name: 'valor', type: 'FLOAT' },
-                    { name: 'status', type: 'STRING' },
-                    { name: 'tipoPagamento', type: 'STRING' },
-                    { name: 'cupom', type: 'STRING' },
-                    { name: 'source_system', type: 'STRING' }
-                ]
-            }
-        });
-        // Create tables in CAMPAIGN dataset
-        await campaignDataset.createTable('message_history', {
-            schema: {
-                fields: [
-                    { name: 'user_id', type: 'STRING' },
-                    { name: 'campaign_type', type: 'STRING' },
-                    { name: 'sent_at', type: 'TIMESTAMP' },
-                    { name: 'status', type: 'STRING' },
-                    { name: 'message_content', type: 'STRING' },
-                    { name: 'phone', type: 'STRING' }
-                ]
-            }
-        });
+        try {
+            // Create tables in RAW dataset
+            await rawDataset.createTable('clientes', {
+                schema: {
+                    fields: [
+                        { name: 'id', type: 'STRING' },
+                        { name: 'nome', type: 'STRING' },
+                        { name: 'dataNascimento', type: 'TIMESTAMP' },
+                        { name: 'cpf', type: 'STRING' },
+                        { name: 'telefone', type: 'STRING' },
+                        { name: 'email', type: 'STRING' },
+                        { name: 'genero', type: 'STRING' },
+                        { name: 'dataCadastro', type: 'TIMESTAMP' },
+                        { name: 'primeiraCompra', type: 'TIMESTAMP' },
+                        { name: 'source_system', type: 'STRING' }
+                    ]
+                }
+            });
+            await rawDataset.createTable('vendas', {
+                schema: {
+                    fields: [
+                        { name: 'data', type: 'TIMESTAMP' },
+                        { name: 'cpfCliente', type: 'STRING' },
+                        { name: 'valor', type: 'FLOAT' },
+                        { name: 'status', type: 'STRING' },
+                        { name: 'tipoPagamento', type: 'STRING' },
+                        { name: 'cupom', type: 'STRING' },
+                        { name: 'source_system', type: 'STRING' }
+                    ]
+                }
+            });
+            // Create tables in CAMPAIGN dataset
+            await campaignDataset.createTable('message_history', {
+                schema: {
+                    fields: [
+                        { name: 'user_id', type: 'STRING' },
+                        { name: 'campaign_type', type: 'STRING' },
+                        { name: 'sent_at', type: 'TIMESTAMP' },
+                        { name: 'status', type: 'STRING' },
+                        { name: 'message_content', type: 'STRING' },
+                        { name: 'phone', type: 'STRING' }
+                    ]
+                }
+            });
+        }
+        catch (error) {
+            console.error('Error creating tables:', error);
+            throw this.handleError(error);
+        }
     }
     async createCloudRunJob(cnpj) {
         const name = `vmhub-sync-${cnpj}`;
         const parent = `projects/${this.projectId}/locations/${config_1.default.region}`;
-        const job = {
-            name: `${parent}/jobs/${name}`,
-            template: {
-                template: {
-                    containers: [{
-                            image: config_1.default.resourceDefaults.cloudRun.containerImage.replace('PROJECT_ID', this.projectId),
-                            env: [
-                                { name: 'CNPJ', value: cnpj },
-                                { name: 'ENVIRONMENT', value: this.environment },
-                                { name: 'PROJECT_ID', value: this.projectId }
-                            ],
-                            resources: {
-                                limits: {
-                                    cpu: config_1.default.resourceDefaults.cloudRun.cpu,
-                                    memory: config_1.default.resourceDefaults.cloudRun.memory
-                                }
-                            }
-                        }],
-                    maxRetries: config_1.default.resourceDefaults.cloudRun.maxRetries,
-                    timeoutSeconds: config_1.default.resourceDefaults.cloudRun.timeoutSeconds
-                }
-            },
-            labels: {
-                environment: this.environment,
-                cnpj: cnpj
-            }
-        };
         try {
-            await this.cloudRun.createJob({
+            const job = {
                 parent,
-                job
-            });
-            console.log(`Cloud Run job ${name} created successfully`);
+                job: {
+                    name: `${parent}/jobs/${name}`,
+                    labels: {
+                        environment: this.environment,
+                        cnpj: cnpj
+                    },
+                    template: {
+                        taskCount: 1,
+                        template: {
+                            containers: [{
+                                    image: config_1.default.resourceDefaults.cloudRun.containerImage.replace('PROJECT_ID', this.projectId),
+                                    env: [
+                                        { name: 'CNPJ', value: cnpj },
+                                        { name: 'ENVIRONMENT', value: this.environment },
+                                        { name: 'PROJECT_ID', value: this.projectId }
+                                    ],
+                                    resources: {
+                                        limits: {
+                                            cpu: config_1.default.resourceDefaults.cloudRun.cpu,
+                                            memory: config_1.default.resourceDefaults.cloudRun.memory
+                                        }
+                                    }
+                                }]
+                        }
+                    }
+                }
+            };
+            const [operation] = await this.cloudRun.createJob(job);
+            const [response] = await operation.promise();
+            console.log(`Cloud Run job ${name} created successfully:`, response);
         }
         catch (error) {
             console.error(`Error creating Cloud Run job ${name}:`, error);
@@ -215,23 +221,28 @@ class InfrastructureProvisioner {
     async createScheduler(cnpj) {
         const name = `vmhub-sync-schedule-${cnpj}`;
         const parent = `projects/${this.projectId}/locations/${config_1.default.region}`;
-        const jobRequest = {
-            parent,
-            job: {
-                name: `${parent}/jobs/${name}`,
-                schedule: config_1.default.resourceDefaults.scheduler.schedule,
-                timeZone: config_1.default.resourceDefaults.scheduler.timezone,
-                httpTarget: {
-                    uri: `https://${config_1.default.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${this.projectId}/jobs/vmhub-sync-${cnpj}:run`,
-                    httpMethod: 'POST'
-                },
-                retryConfig: {
-                    retryCount: config_1.default.resourceDefaults.scheduler.retryCount,
-                    maxRetryDuration: config_1.default.resourceDefaults.scheduler.maxRetryDuration
-                }
-            }
-        };
         try {
+            const jobRequest = {
+                parent,
+                job: {
+                    name: `${parent}/jobs/${name}`,
+                    schedule: config_1.default.resourceDefaults.scheduler.schedule,
+                    timeZone: config_1.default.resourceDefaults.scheduler.timezone,
+                    httpTarget: {
+                        uri: `https://${config_1.default.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${this.projectId}/jobs/vmhub-sync-${cnpj}:run`,
+                        httpMethod: 'POST',
+                        headers: {
+                            'User-Agent': 'Google-Cloud-Scheduler'
+                        }
+                    },
+                    retryConfig: {
+                        retryCount: config_1.default.resourceDefaults.scheduler.retryCount,
+                        maxRetryDuration: {
+                            seconds: parseInt(config_1.default.resourceDefaults.scheduler.maxRetryDuration)
+                        }
+                    }
+                }
+            };
             await this.scheduler.createJob(jobRequest);
             console.log(`Cloud Scheduler job ${name} created successfully`);
         }
@@ -241,15 +252,17 @@ class InfrastructureProvisioner {
         }
     }
     async triggerInitialSync(cnpj) {
-        const jobName = `vmhub-sync-${cnpj}`;
+        const name = `projects/${this.projectId}/locations/${config_1.default.region}/jobs/vmhub-sync-${cnpj}`;
         try {
-            await this.cloudRun.runJob({
-                name: `projects/${this.projectId}/locations/${config_1.default.region}/jobs/${jobName}`
-            });
-            console.log(`Initial sync triggered for ${jobName}`);
+            const request = {
+                name
+            };
+            const [operation] = await this.cloudRun.runJob(request);
+            const [response] = await operation.promise();
+            console.log(`Initial sync triggered for ${name}:`, response);
         }
         catch (error) {
-            console.error(`Error triggering initial sync for ${jobName}:`, error);
+            console.error(`Error triggering initial sync for ${name}:`, error);
             throw this.handleError(error);
         }
     }

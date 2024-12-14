@@ -41,7 +41,7 @@ interface BigQueryConfig {
 
 export interface UserData {
   email: string;
-  status: 'pending_setup' | 'provisioning' | 'provisioned' | 'error';
+  status: "pending_setup" | "provisioning" | "provisioned" | "error";
 }
 
 export interface InfrastructureError extends Error {
