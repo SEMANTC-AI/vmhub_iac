@@ -34,47 +34,38 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onUserDelete = exports.onTokensSetup = exports.onNewUserSetup = void 0;
-const functions = __importStar(require("firebase-functions"));
+exports.onUserDelete = exports.onConfigSetup = void 0;
+const firestore_1 = require("firebase-functions/v2/firestore");
 const admin = __importStar(require("firebase-admin"));
 const infrastructure_1 = require("./infrastructure");
 admin.initializeApp();
 /**
- * Handles new user creation in Firestore
+ * Handles infrastructure provisioning when config is created (v2 style)
  */
-exports.onNewUserSetup = functions.firestore
-    .document("users/{userId}")
-    .onCreate(async (snap, context) => {
-    const data = snap.data();
-    const userId = context.params.userId;
-    try {
-        await snap.ref.set({
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            status: "pending_setup",
-            email: data.email || null,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-        console.log(`New user created: ${userId}`);
+exports.onConfigSetup = (0, firestore_1.onDocumentCreated)("users/{userId}/config/settings", async (event) => {
+    var _a;
+    if (!event.data) {
+        console.error("No document snapshot provided for config setup.");
+        return;
     }
-    catch (error) {
-        console.error(`Failed to setup new user ${userId}:`, error);
+    if (!((_a = event.params) === null || _a === void 0 ? void 0 : _a.userId)) {
+        console.error("No userId parameter provided for config setup.");
+        return;
+    }
+    const snap = event.data;
+    const userId = event.params.userId;
+    const data = snap.data();
+    const cnpj = data === null || data === void 0 ? void 0 : data.cnpj;
+    console.log(`Processing new setup for user ${userId} with data:`, data);
+    if (!cnpj) {
+        console.error("No CNPJ found in config document");
         await snap.ref.update({
             status: "error",
-            error: error instanceof Error ? error.message : "Unknown error",
+            error: "No CNPJ provided",
             errorTimestamp: admin.firestore.FieldValue.serverTimestamp(),
         });
-        throw error;
+        return;
     }
-});
-/**
- * Handles infrastructure provisioning when tokens are set up
- */
-exports.onTokensSetup = functions.firestore
-    .document("users/{userId}/config/{cnpj}")
-    .onCreate(async (snap, context) => {
-    const userId = context.params.userId;
-    const cnpj = context.params.cnpj;
-    console.log(`Processing new setup for user ${userId} with CNPJ ${cnpj}`);
     const provisioner = new infrastructure_1.InfrastructureProvisioner();
     try {
         const userDoc = await admin.firestore()
@@ -116,11 +107,16 @@ exports.onTokensSetup = functions.firestore
     }
 });
 /**
- * Handles user deletion cleanup
+ * Handles user deletion cleanup (v2 style)
  */
-exports.onUserDelete = functions.firestore
-    .document("users/{userId}")
-    .onDelete(async (snap, context) => {
-    console.log(`User ${context.params.userId} deleted`);
+exports.onUserDelete = (0, firestore_1.onDocumentDeleted)("users/{userId}", async (event) => {
+    var _a;
+    if (!((_a = event.params) === null || _a === void 0 ? void 0 : _a.userId)) {
+        console.error("No userId parameter provided for user deletion.");
+        return;
+    }
+    const userId = event.params.userId;
+    // TODO: Add cleanup logic for all created resources
+    console.log(`User ${userId} deleted`);
 });
 //# sourceMappingURL=index.js.map

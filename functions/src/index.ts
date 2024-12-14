@@ -1,6 +1,6 @@
 // src/index.ts
 
-import * as functions from "firebase-functions";
+import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import { InfrastructureProvisioner } from "./infrastructure";
 import { UserData, InfrastructureError } from "./types";
@@ -8,100 +8,92 @@ import { UserData, InfrastructureError } from "./types";
 admin.initializeApp();
 
 /**
- * Handles new user creation in Firestore
+ * Handles infrastructure provisioning when config is created (v2 style)
  */
-export const onNewUserSetup = functions.firestore
-  .document("users/{userId}")
-  .onCreate(async (snap: functions.firestore.DocumentSnapshot, context: functions.EventContext) => {
-    const data = snap.data() as UserData;
-    const userId = context.params.userId;
+export const onConfigSetup = onDocumentCreated("users/{userId}/config/settings", async (event) => {
+  if (!event.data) {
+    console.error("No document snapshot provided for config setup.");
+    return;
+  }
+  if (!event.params?.userId) {
+    console.error("No userId parameter provided for config setup.");
+    return;
+  }
 
-    try {
-      await snap.ref.set({
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        status: "pending_setup",
-        email: data.email || null,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
+  const snap = event.data;
+  const userId = event.params.userId;
+  const data = snap.data();
+  const cnpj = data?.cnpj;
 
-      console.log(`New user created: ${userId}`);
-    } catch (error) {
-      console.error(`Failed to setup new user ${userId}:`, error);
-      await snap.ref.update({
-        status: "error",
-        error: error instanceof Error ? error.message : "Unknown error",
-        errorTimestamp: admin.firestore.FieldValue.serverTimestamp(),
+  console.log(`Processing new setup for user ${userId} with data:`, data);
+
+  if (!cnpj) {
+    console.error("No CNPJ found in config document");
+    await snap.ref.update({
+      status: "error",
+      error: "No CNPJ provided",
+      errorTimestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return;
+  }
+
+  const provisioner = new InfrastructureProvisioner();
+
+  try {
+    const userDoc = await admin.firestore()
+      .collection("users")
+      .doc(userId)
+      .get();
+
+    const userData = userDoc.data() as UserData;
+    const userEmail = userData?.email || `user-${userId}@vmhub.com`; // Fallback email
+
+    await snap.ref.update({
+      status: "provisioning",
+      startedAt: admin.firestore.FieldValue.serverTimestamp(),
+      userEmail: userEmail,
+    });
+
+    await provisioner.provision(cnpj, userEmail);
+
+    await snap.ref.update({
+      status: "provisioned",
+      completedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    console.log(`Successfully provisioned infrastructure for CNPJ ${cnpj}`);
+  } catch (error) {
+    console.error(`Failed to provision infrastructure for CNPJ ${cnpj}:`, error);
+
+    await snap.ref.update({
+      status: "error",
+      error: error instanceof Error ? error.message : "Unknown error",
+      errorTimestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    if (error instanceof Error) {
+      const infraError = error as InfrastructureError;
+      console.error("Infrastructure Error:", {
+        code: infraError.code,
+        details: infraError.details,
+        message: infraError.message,
       });
-      throw error;
     }
-  });
+
+    throw error;
+  }
+});
 
 /**
- * Handles infrastructure provisioning when tokens are set up
+ * Handles user deletion cleanup (v2 style)
  */
-export const onTokensSetup = functions.firestore
-  .document("users/{userId}/config/{cnpj}")
-  .onCreate(async (snap: functions.firestore.DocumentSnapshot, context: functions.EventContext) => {
-    const userId = context.params.userId;
-    const cnpj = context.params.cnpj;
+export const onUserDelete = onDocumentDeleted("users/{userId}", async (event) => {
+  if (!event.params?.userId) {
+    console.error("No userId parameter provided for user deletion.");
+    return;
+  }
 
-    console.log(`Processing new setup for user ${userId} with CNPJ ${cnpj}`);
-
-    const provisioner = new InfrastructureProvisioner();
-
-    try {
-      const userDoc = await admin.firestore()
-        .collection("users")
-        .doc(userId)
-        .get();
-
-      const userData = userDoc.data() as UserData;
-
-      if (!userData?.email) {
-        throw new Error("User email not found");
-      }
-
-      await snap.ref.update({
-        status: "provisioning",
-        startedAt: admin.firestore.FieldValue.serverTimestamp(),
-        userEmail: userData.email,
-      });
-
-      await provisioner.provision(cnpj, userData.email);
-
-      await snap.ref.update({
-        status: "provisioned",
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      console.log(`Successfully provisioned infrastructure for CNPJ ${cnpj}`);
-    } catch (error) {
-      console.error(`Failed to provision infrastructure for CNPJ ${cnpj}:`, error);
-
-      await snap.ref.update({
-        status: "error",
-        error: error instanceof Error ? error.message : "Unknown error",
-        errorTimestamp: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      if (error instanceof Error) {
-        const infraError = error as InfrastructureError;
-        console.error("Infrastructure Error:", {
-          code: infraError.code,
-          details: infraError.details,
-          message: infraError.message,
-        });
-      }
-
-      throw error;
-    }
-  });
-
-/**
- * Handles user deletion cleanup
- */
-export const onUserDelete = functions.firestore
-  .document("users/{userId}")
-  .onDelete(async (snap: functions.firestore.DocumentSnapshot, context: functions.EventContext) => {
-    console.log(`User ${context.params.userId} deleted`);
-  });
+  const userId = event.params.userId;
+  // TODO: Add cleanup logic for all created resources
+  console.log(`User ${userId} deleted`);
+});
