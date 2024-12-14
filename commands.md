@@ -11,3 +11,14 @@ firebase functions:log
 
 # check terraform state
 terraform show
+
+
+
+
+
+
+# Make the script executable first
+chmod +x deploy.sh
+
+# Run the deployment
+./deploy.sh dev semantc-ai-dev us-central1

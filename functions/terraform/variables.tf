@@ -1,4 +1,4 @@
-# terraform/functions/terraform/variables.tf
+# functions/terraform/variables.tf
 
 variable "project_id" {
     description = "The GCP project ID"

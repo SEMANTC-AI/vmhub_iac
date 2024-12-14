@@ -1,4 +1,4 @@
-# terraform/functions/terraform/outputs.tf
+# functions/terraform/outputs.tf
 
 output "function_name" {
   description = "THE NAME OF THE DEPLOYED FUNCTION"

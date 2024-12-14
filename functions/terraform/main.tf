@@ -1,4 +1,4 @@
-# terraform/functions/terraform/main.tf
+# functions/terraform/main.tf
 
 resource "google_storage_bucket" "function_bucket" {
   name                        = "vmhub-functions-${var.environment}"

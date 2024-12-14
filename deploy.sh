@@ -23,8 +23,10 @@ echo "🚀 Starting deployment for $ENVIRONMENT environment"
 echo "Project ID: $PROJECT_ID"
 echo "Region: $REGION"
 
-# Create terraform.tfvars if it doesn't exist
+# Deploy infrastructure first
 cd environments/$ENVIRONMENT
+
+# Create terraform.tfvars if it doesn't exist
 if [ ! -f "terraform.tfvars" ]; then
     echo "Creating terraform.tfvars..."
     cat > terraform.tfvars << EOF
@@ -47,15 +49,36 @@ terraform apply tfplan
 
 echo "✅ Infrastructure deployment completed!"
 
-# Deploy Cloud Functions (if they exist)
-if [ -d "../../functions" ]; then
-    echo "📦 Deploying Cloud Functions..."
-    cd ../../functions
-    npm install
-    npm run build
-    firebase use $PROJECT_ID
-    firebase deploy --only functions
-    echo "✅ Functions deployment completed!"
+# Deploy Cloud Functions
+echo "📦 Deploying Cloud Functions..."
+cd ../../functions
+
+# Check if package.json exists
+if [ ! -f "package.json" ]; then
+    echo "❌ Error: package.json not found in functions directory"
+    exit 1
 fi
 
+# Install dependencies
+echo "Installing dependencies..."
+npm install
+
+# Build TypeScript files
+echo "Building functions..."
+npm run build || {
+    echo "❌ Build failed. Check your TypeScript configuration."
+    exit 1
+}
+
+# Initialize Firebase if needed
+if ! firebase projects:list | grep -q "$PROJECT_ID"; then
+    echo "Initializing Firebase..."
+    firebase use "$PROJECT_ID"
+fi
+
+# Deploy functions
+echo "Deploying functions to Firebase..."
+firebase deploy --only functions --project "$PROJECT_ID"
+
+echo "✅ Functions deployment completed!"
 echo "🎉 All deployments completed successfully!"
