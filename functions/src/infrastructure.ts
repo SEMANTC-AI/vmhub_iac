@@ -27,20 +27,34 @@ export class InfrastructureProvisioner {
 
     const clientConfig = {
       projectId: this.projectId,
-      // Include only GCP APIs you're explicitly using
+      keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
       scopes: [
         "https://www.googleapis.com/auth/cloud-platform",
-        "https://www.googleapis.com/auth/cloudscheduler",
       ],
     };
 
-    this.cloudRun = new JobsClient(clientConfig);
-    this.scheduler = new CloudSchedulerClient(clientConfig);
+    this.cloudRun = new JobsClient({
+      ...clientConfig,
+      retry: {
+        initialDelayMillis: 100,
+        maxDelayMillis: 60000,
+        maxRetries: 5,
+      },
+    });
+
+    this.scheduler = new CloudSchedulerClient({
+      ...clientConfig,
+      retry: {
+        initialDelayMillis: 100,
+        maxDelayMillis: 60000,
+        maxRetries: 5,
+      },
+    });
 
     console.log("Infrastructure Provisioner initialized with:", {
       projectId: this.projectId,
       environment: this.environment,
-      region: config.region,
+      credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS ? "set" : "not set",
     });
   }
 
@@ -51,26 +65,18 @@ export class InfrastructureProvisioner {
    * @return {Promise<void>}
    */
   async createCloudRunJob(cnpj: string, userId: string): Promise<void> {
-    const name = `vmhub-sync-${cnpj}-${this.environment}`;
+    const jobId = `vmhub-sync-${cnpj}-${this.environment}`;
     const parent = `projects/${this.projectId}/locations/${config.region}`;
-    const fullJobName = `${parent}/jobs/${name}`;
 
     try {
-      console.log("Creating Cloud Run job with:", {
-        name: fullJobName,
-        projectId: this.projectId,
-        region: config.region,
-      });
-
       const job = {
         parent,
-        jobId: name,
+        jobId,
         job: {
-          name: fullJobName,
+          // remove the name field
           labels: {
             environment: this.environment,
             cnpj: cnpj,
-            managedBy: "vmhub",
           },
           template: {
             taskCount: 1,
@@ -96,10 +102,10 @@ export class InfrastructureProvisioner {
       };
 
       const [operation] = await this.cloudRun.createJob(job);
-      const [response] = await operation.promise();
-      console.log(`Cloud Run job ${name} created successfully:`, response);
+      await operation.promise();
+      console.log(`Cloud Run job ${jobId} created successfully`);
     } catch (error) {
-      console.error(`Error creating Cloud Run job ${name}:`, error);
+      console.error(`error creating Cloud Run job ${jobId}:`, error);
       throw this.handleError(error);
     }
   }
@@ -113,24 +119,16 @@ export class InfrastructureProvisioner {
     const name = `vmhub-sync-schedule-${cnpj}-${this.environment}`;
     const parent = `projects/${this.projectId}/locations/${config.region}`;
     const jobName = `vmhub-sync-${cnpj}-${this.environment}`;
-    const fullJobName = `${parent}/jobs/${name}`;
 
     const baseUri = `https://${config.region}-run.googleapis.com`;
     const apiPath = `apis/run.googleapis.com/v1/namespaces/${this.projectId}/jobs`;
     const runUri = `${baseUri}/${apiPath}/${jobName}:run`;
 
     try {
-      console.log("Creating Cloud Scheduler job with:", {
-        name: fullJobName,
-        uri: runUri,
-        projectId: this.projectId,
-        region: config.region,
-      });
-
       const jobRequest = {
         parent,
         job: {
-          name: fullJobName,
+          name: `${parent}/jobs/${name}`,
           schedule: config.resourceDefaults.scheduler.schedule,
           timeZone: config.resourceDefaults.scheduler.timezone,
           httpTarget: {
@@ -149,10 +147,10 @@ export class InfrastructureProvisioner {
         },
       };
 
-      const [response] = await this.scheduler.createJob(jobRequest);
-      console.log(`Cloud Scheduler job ${name} created successfully:`, response);
+      await this.scheduler.createJob(jobRequest);
+      console.log(`Cloud Scheduler job ${name} created successfully`);
     } catch (error) {
-      console.error(`Error creating Cloud Scheduler job ${name}:`, error);
+      console.error(`error creating Cloud Scheduler job ${name}:`, error);
       throw this.handleError(error);
     }
   }
@@ -164,14 +162,14 @@ export class InfrastructureProvisioner {
    * @return {Promise<boolean>} Whether the provisioning succeeded
    */
   async provision(cnpj: string, userId: string): Promise<boolean> {
-    console.log(`Starting provisioning for CNPJ ${cnpj} (User: ${userId})`);
+    console.log(`starting provisioning for CNPJ ${cnpj}`);
     try {
       await this.createCloudRunJob(cnpj, userId);
       await this.createScheduler(cnpj);
-      console.log(`Completed provisioning for CNPJ ${cnpj}`);
+      console.log(`completed provisioning for CNPJ ${cnpj}`);
       return true;
     } catch (error) {
-      console.error(`Failed to provision infrastructure for CNPJ ${cnpj}:`, error);
+      console.error(`failed to provision infrastructure for CNPJ ${cnpj}:`, error);
       throw this.handleError(error);
     }
   }
@@ -183,11 +181,10 @@ export class InfrastructureProvisioner {
    */
   private handleError(error: unknown): InfrastructureError {
     if (error instanceof Error) {
-      const gcloudError = error as any;
       return {
         ...error,
-        code: gcloudError.code || error.name,
-        details: gcloudError.details || error.message,
+        code: error.name,
+        details: error.message,
       };
     }
     return new Error("unknown error occurred");

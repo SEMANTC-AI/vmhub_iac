@@ -22,17 +22,17 @@ resource "google_project_iam_member" "service_account_user" {
   member  = "serviceAccount:${google_service_account.main.email}"
 }
 
-# Cloud Run permissions
-resource "google_project_iam_member" "cloud_run" {
+# Cloud Run Admin permissions
+resource "google_project_iam_member" "cloud_run_admin" {
   project = var.project_id
-  role    = "roles/run.invoker"
+  role    = "roles/run.admin"
   member  = "serviceAccount:${google_service_account.main.email}"
 }
 
-# Cloud Run Developer permissions
-resource "google_project_iam_member" "cloud_run_developer" {
+# Cloud Run Service Agent permissions
+resource "google_project_iam_member" "cloud_run_service_agent" {
   project = var.project_id
-  role    = "roles/run.developer"
+  role    = "roles/run.serviceAgent"
   member  = "serviceAccount:${google_service_account.main.email}"
 }
 
@@ -62,6 +62,13 @@ resource "google_project_iam_member" "secret_manager" {
   count   = var.enable_secret_manager_access ? 1 : 0
   project = var.project_id
   role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.main.email}"
+}
+
+# Token creator role
+resource "google_project_iam_member" "token_creator" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountTokenCreator"
   member  = "serviceAccount:${google_service_account.main.email}"
 }
 

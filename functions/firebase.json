@@ -3,12 +3,12 @@
     "source": ".",
     "runtime": "nodejs18",
     "region": "us-central1",
-    "memory": "256MiB",
+    "memory": "512MiB",
+    "timeoutSeconds": 540,
     "environmentVariables": {
       "ENVIRONMENT": "${param:runtime.environment}",
       "GCLOUD_PROJECT": "${param:runtime.project_id}",
-      "ADMIN_EMAIL": "${param:runtime.admin_email}",
-      "SERVICE_ACCOUNT": "${param:runtime.service_account}"
+      "GOOGLE_CLOUD_PROJECT": "${param:runtime.project_id}"
     },
     "predeploy": [
       "npm --prefix \"$RESOURCE_DIR\" run lint",
