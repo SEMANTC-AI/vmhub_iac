@@ -86,10 +86,10 @@ export class InfrastructureProvisioner {
                 env: [
                   { name: "CNPJ", value: cnpj },
                   { name: "ENVIRONMENT", value: this.environment },
-                  { name: "PROJECT_ID", value: this.projectId },
+                  { name: "GCP_PROJECT_ID", value: this.projectId },
+                  { name: "GCS_BUCKET_NAME", value: "vmhub-data" },
                   { name: "USER_ID", value: userId },
                   { name: "VMHUB_BASE_URL", value: "https://apps.vmhub.vmtecnologia.io/vmlav/api/externa/v1" },
-                  { name: "GCS_BUCKET_NAME", value: "vmhub-data" },
                 ],
                 resources: {
                   limits: {
