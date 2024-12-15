@@ -3,12 +3,12 @@
 import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import { InfrastructureProvisioner } from "./infrastructure";
-import { UserData, InfrastructureError } from "./types";
+import { InfrastructureError } from "./types";
 
 admin.initializeApp();
 
 /**
- * Handles infrastructure provisioning when config is created (v2 style)
+ * Handles infrastructure provisioning when config is created
  */
 export const onConfigSetup = onDocumentCreated("users/{userId}/config/settings", async (event) => {
   if (!event.data) {
@@ -40,21 +40,12 @@ export const onConfigSetup = onDocumentCreated("users/{userId}/config/settings",
   const provisioner = new InfrastructureProvisioner();
 
   try {
-    const userDoc = await admin.firestore()
-      .collection("users")
-      .doc(userId)
-      .get();
-
-    const userData = userDoc.data() as UserData;
-    const userEmail = userData?.email || `user-${userId}@vmhub.com`; // Fallback email
-
     await snap.ref.update({
       status: "provisioning",
       startedAt: admin.firestore.FieldValue.serverTimestamp(),
-      userEmail: userEmail,
     });
 
-    await provisioner.provision(cnpj, userEmail);
+    await provisioner.provision(cnpj);
 
     await snap.ref.update({
       status: "provisioned",
@@ -85,7 +76,7 @@ export const onConfigSetup = onDocumentCreated("users/{userId}/config/settings",
 });
 
 /**
- * Handles user deletion cleanup (v2 style)
+ * Handles user deletion cleanup
  */
 export const onUserDelete = onDocumentDeleted("users/{userId}", async (event) => {
   if (!event.params?.userId) {
@@ -95,5 +86,10 @@ export const onUserDelete = onDocumentDeleted("users/{userId}", async (event) =>
 
   const userId = event.params.userId;
   // TODO: Add cleanup logic for all created resources
+  // This could include:
+  // - Deleting GCS buckets
+  // - Deleting BigQuery datasets
+  // - Removing Cloud Run jobs
+  // - Removing Cloud Scheduler jobs
   console.log(`User ${userId} deleted`);
 });

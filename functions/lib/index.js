@@ -40,7 +40,7 @@ const admin = __importStar(require("firebase-admin"));
 const infrastructure_1 = require("./infrastructure");
 admin.initializeApp();
 /**
- * Handles infrastructure provisioning when config is created (v2 style)
+ * Handles infrastructure provisioning when config is created
  */
 exports.onConfigSetup = (0, firestore_1.onDocumentCreated)("users/{userId}/config/settings", async (event) => {
     var _a;
@@ -68,20 +68,11 @@ exports.onConfigSetup = (0, firestore_1.onDocumentCreated)("users/{userId}/confi
     }
     const provisioner = new infrastructure_1.InfrastructureProvisioner();
     try {
-        const userDoc = await admin.firestore()
-            .collection("users")
-            .doc(userId)
-            .get();
-        const userData = userDoc.data();
-        if (!(userData === null || userData === void 0 ? void 0 : userData.email)) {
-            throw new Error("User email not found");
-        }
         await snap.ref.update({
             status: "provisioning",
             startedAt: admin.firestore.FieldValue.serverTimestamp(),
-            userEmail: userData.email,
         });
-        await provisioner.provision(cnpj, userData.email);
+        await provisioner.provision(cnpj);
         await snap.ref.update({
             status: "provisioned",
             completedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -107,7 +98,7 @@ exports.onConfigSetup = (0, firestore_1.onDocumentCreated)("users/{userId}/confi
     }
 });
 /**
- * Handles user deletion cleanup (v2 style)
+ * Handles user deletion cleanup
  */
 exports.onUserDelete = (0, firestore_1.onDocumentDeleted)("users/{userId}", async (event) => {
     var _a;
@@ -117,6 +108,11 @@ exports.onUserDelete = (0, firestore_1.onDocumentDeleted)("users/{userId}", asyn
     }
     const userId = event.params.userId;
     // TODO: Add cleanup logic for all created resources
+    // This could include:
+    // - Deleting GCS buckets
+    // - Deleting BigQuery datasets
+    // - Removing Cloud Run jobs
+    // - Removing Cloud Scheduler jobs
     console.log(`User ${userId} deleted`);
 });
 //# sourceMappingURL=index.js.map

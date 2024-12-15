@@ -23,15 +23,14 @@ class InfrastructureProvisioner {
         this.scheduler = new scheduler_1.CloudSchedulerClient();
     }
     /**
-      * Creates a new GCS bucket for data storage
-      * @param {string} cnpj - Company identifier
-      * @param {string} userEmail - User's email for permissions
-      * @return {Promise<void>}
-      */
-    async createBucket(cnpj, userEmail) {
+     * Creates a new GCS bucket for data storage
+     * @param {string} cnpj - Company identifier
+     * @return {Promise<void>}
+     */
+    async createBucket(cnpj) {
         const bucketName = `vmhub-data-semantc-ai-${cnpj}-${this.environment}`;
         try {
-            const [bucket] = await this.storage.createBucket(bucketName, {
+            await this.storage.createBucket(bucketName, {
                 location: config_1.config.resourceDefaults.storage.location,
                 uniformBucketLevelAccess: true,
                 labels: {
@@ -49,18 +48,6 @@ class InfrastructureProvisioner {
                     ],
                 },
             });
-            await bucket.iam.setPolicy({
-                bindings: [
-                    {
-                        role: "roles/storage.objectViewer",
-                        members: [`user:${userEmail}`],
-                    },
-                    {
-                        role: "roles/storage.admin",
-                        members: [`user:${config_1.config.adminEmail}`],
-                    },
-                ],
-            });
             await Promise.all([
                 this.storage.bucket(bucketName).file("vendas/").save(""),
                 this.storage.bucket(bucketName).file("clientes/").save(""),
@@ -73,12 +60,11 @@ class InfrastructureProvisioner {
         }
     }
     /**
-      * Creates BigQuery datasets for raw and campaign data
-      * @param {string} cnpj - Company identifier
-      * @param {string} userEmail - User's email for permissions
-      * @return {Promise<void>}
-      */
-    async createDataset(cnpj, userEmail) {
+     * Creates BigQuery datasets for raw and campaign data
+     * @param {string} cnpj - Company identifier
+     * @return {Promise<void>}
+     */
+    async createDataset(cnpj) {
         const rawDatasetId = `CNPJ_${cnpj}_RAW`;
         const campaignDatasetId = `CNPJ_${cnpj}_CAMPAIGN`;
         try {
@@ -90,19 +76,6 @@ class InfrastructureProvisioner {
                     type: "raw",
                 },
             });
-            const [rawDataset] = await this.bigquery.dataset(rawDatasetId).get();
-            const rawMetadata = rawDataset.metadata;
-            rawMetadata.access = [
-                {
-                    role: "WRITER",
-                    userByEmail: config_1.config.adminEmail,
-                },
-                {
-                    role: "READER",
-                    userByEmail: userEmail,
-                },
-            ];
-            await rawDataset.setMetadata(rawMetadata);
             await this.bigquery.createDataset(campaignDatasetId, {
                 location: config_1.config.resourceDefaults.bigquery.location,
                 labels: {
@@ -111,19 +84,6 @@ class InfrastructureProvisioner {
                     type: "campaign",
                 },
             });
-            const [campaignDataset] = await this.bigquery.dataset(campaignDatasetId).get();
-            const campaignMetadata = campaignDataset.metadata;
-            campaignMetadata.access = [
-                {
-                    role: "WRITER",
-                    userByEmail: config_1.config.adminEmail,
-                },
-                {
-                    role: "READER",
-                    userByEmail: userEmail,
-                },
-            ];
-            await campaignDataset.setMetadata(campaignMetadata);
             await this.createTables(rawDatasetId, campaignDatasetId);
             console.log(`Datasets created successfully for CNPJ ${cnpj}`);
         }
@@ -134,10 +94,10 @@ class InfrastructureProvisioner {
     }
     /**
      * Creates required tables in BigQuery datasets
-      * @param {string} rawDatasetId - Raw dataset identifier
-      * @param {string} campaignDatasetId - Campaign dataset identifier
-      * @return {Promise<void>}
-      */
+     * @param {string} rawDatasetId - Raw dataset identifier
+     * @param {string} campaignDatasetId - Campaign dataset identifier
+     * @return {Promise<void>}
+     */
     async createTables(rawDatasetId, campaignDatasetId) {
         try {
             await this.bigquery.dataset(rawDatasetId).createTable("clientes", {
@@ -188,10 +148,10 @@ class InfrastructureProvisioner {
         }
     }
     /**
-      * Creates a Cloud Run job for data synchronization
-      * @param {string} cnpj - Company identifier
-      * @return {Promise<void>}
-      */
+     * Creates a Cloud Run job for data synchronization
+     * @param {string} cnpj - Company identifier
+     * @return {Promise<void>}
+     */
     async createCloudRunJob(cnpj) {
         const name = `vmhub-sync-${cnpj}`;
         const parent = `projects/${this.projectId}/locations/${config_1.config.region}`;
@@ -242,6 +202,11 @@ class InfrastructureProvisioner {
     async createScheduler(cnpj) {
         const name = `vmhub-sync-schedule-${cnpj}`;
         const parent = `projects/${this.projectId}/locations/${config_1.config.region}`;
+        const jobName = `vmhub-sync-${cnpj}`;
+        // Build the Cloud Run job URI in parts
+        const baseUri = `https://${config_1.config.region}-run.googleapis.com`;
+        const apiPath = `apis/run.googleapis.com/v1/namespaces/${this.projectId}/jobs`;
+        const runUri = `${baseUri}/${apiPath}/${jobName}:run`;
         try {
             const jobRequest = {
                 parent,
@@ -250,8 +215,7 @@ class InfrastructureProvisioner {
                     schedule: config_1.config.resourceDefaults.scheduler.schedule,
                     timeZone: config_1.config.resourceDefaults.scheduler.timezone,
                     httpTarget: {
-                        uri: `https://${config_1.config.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/` +
-                            `${this.projectId}/jobs/vmhub-sync-${cnpj}:run`,
+                        uri: runUri,
                         httpMethod: "POST",
                         headers: {
                             "User-Agent": "Google-Cloud-Scheduler",
@@ -274,10 +238,10 @@ class InfrastructureProvisioner {
         }
     }
     /**
-      * Triggers initial data synchronization
-      * @param {string} cnpj - Company identifier
-      * @return {Promise<void>}
-      */
+     * Triggers initial data synchronization
+     * @param {string} cnpj - Company identifier
+     * @return {Promise<void>}
+     */
     async triggerInitialSync(cnpj) {
         const name = `projects/${this.projectId}/locations/${config_1.config.region}/jobs/vmhub-sync-${cnpj}`;
         try {
@@ -291,16 +255,15 @@ class InfrastructureProvisioner {
         }
     }
     /**
-      * Provisions all required infrastructure components
-      * @param {string} cnpj - Company identifier
-      * @param {string} userEmail - User's email for permissions
-      * @return {Promise<boolean>} Success status of the provisioning
-      */
-    async provision(cnpj, userEmail) {
+     * Provisions all required infrastructure components
+     * @param {string} cnpj - Company identifier
+     * @return {Promise<boolean>} Success status of the provisioning
+     */
+    async provision(cnpj) {
         console.log(`Starting provisioning for CNPJ ${cnpj}`);
         try {
-            await this.createBucket(cnpj, userEmail);
-            await this.createDataset(cnpj, userEmail);
+            await this.createBucket(cnpj);
+            await this.createDataset(cnpj);
             await this.createCloudRunJob(cnpj);
             await this.createScheduler(cnpj);
             await this.triggerInitialSync(cnpj);
@@ -313,10 +276,10 @@ class InfrastructureProvisioner {
         }
     }
     /**
-      * Handles error transformation
-      * @param {unknown} error - Raw error to be processed
-      * @return {InfrastructureError} Standardized error format
-      */
+     * Handles error transformation
+     * @param {unknown} error - Raw error to be processed
+     * @return {InfrastructureError} Standardized error format
+     */
     handleError(error) {
         if (error instanceof Error) {
             return Object.assign(Object.assign({}, error), { code: error.name, details: error.message });
