@@ -10,7 +10,7 @@ const config_1 = require("./config");
  */
 class InfrastructureProvisioner {
     /**
-     * Initializes the InfrastructureProvisioner with project configuration
+     * initializes the InfrastructureProvisioner with project configuration
      */
     constructor() {
         if (!config_1.config.projectId) {
@@ -42,7 +42,7 @@ class InfrastructureProvisioner {
         });
     }
     /**
-     * Creates a Cloud Run job for data synchronization
+     * creates a Cloud Run job for data synchronization
      * @param {string} cnpj - Company identifier
      * @param {string} userId - Firestore user ID
      * @return {Promise<void>}
@@ -70,6 +70,8 @@ class InfrastructureProvisioner {
                                         { name: "ENVIRONMENT", value: this.environment },
                                         { name: "PROJECT_ID", value: this.projectId },
                                         { name: "USER_ID", value: userId },
+                                        { name: "VMHUB_BASE_URL", value: "https://apps.vmhub.vmtecnologia.io/vmlav/api/externa/v1" },
+                                        { name: "GCS_BUCKET_NAME", value: "vmhub-data" },
                                     ],
                                     resources: {
                                         limits: {
