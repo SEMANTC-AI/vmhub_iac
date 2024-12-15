@@ -27,7 +27,7 @@ export class InfrastructureProvisioner {
   /**
    * Creates a Cloud Run job for data synchronization
    * @param {string} cnpj - Company identifier
-   * @returns {Promise<void>}
+   * @return {Promise<void>}
    */
   async createCloudRunJob(cnpj: string): Promise<void> {
     const name = `vmhub-sync-${cnpj}`;
@@ -77,13 +77,13 @@ export class InfrastructureProvisioner {
   /**
    * Creates a Cloud Scheduler job for periodic sync
    * @param {string} cnpj - Company identifier
-   * @returns {Promise<void>}
+   * @return {Promise<void>}
    */
   async createScheduler(cnpj: string): Promise<void> {
     const name = `vmhub-sync-schedule-${cnpj}`;
     const parent = `projects/${this.projectId}/locations/${config.region}`;
     const jobName = `vmhub-sync-${cnpj}`;
-    
+
     const baseUri = `https://${config.region}-run.googleapis.com`;
     const apiPath = `apis/run.googleapis.com/v1/namespaces/${this.projectId}/jobs`;
     const runUri = `${baseUri}/${apiPath}/${jobName}:run`;
@@ -122,7 +122,7 @@ export class InfrastructureProvisioner {
   /**
    * Provisions Cloud Run and Scheduler jobs
    * @param {string} cnpj - Company identifier
-   * @returns {Promise<boolean>} Success status of the provisioning
+   * @return {Promise<boolean>} Success status of the provisioning
    */
   async provision(cnpj: string): Promise<boolean> {
     console.log(`starting provisioning for CNPJ ${cnpj}`);
@@ -140,7 +140,7 @@ export class InfrastructureProvisioner {
   /**
    * Handles error transformation
    * @param {unknown} error - Raw error to be processed
-   * @returns {InfrastructureError} Standardized error format
+   * @return {InfrastructureError} Standardized error format
    */
   private handleError(error: unknown): InfrastructureError {
     if (error instanceof Error) {
