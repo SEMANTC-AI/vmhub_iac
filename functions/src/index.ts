@@ -7,9 +7,6 @@ import { InfrastructureError } from "./types";
 
 admin.initializeApp();
 
-/**
- * Handles infrastructure provisioning when config is created
- */
 export const onConfigSetup = onDocumentCreated("users/{userId}/config/settings", async (event) => {
   if (!event.data) {
     console.error("No document snapshot provided for config setup.");
@@ -45,7 +42,8 @@ export const onConfigSetup = onDocumentCreated("users/{userId}/config/settings",
       startedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    await provisioner.provision(cnpj);
+    // PASS userId TO provision
+    await provisioner.provision(cnpj, userId);
 
     await snap.ref.update({
       status: "provisioned",
@@ -75,9 +73,6 @@ export const onConfigSetup = onDocumentCreated("users/{userId}/config/settings",
   }
 });
 
-/**
- * Handles user deletion cleanup
- */
 export const onUserDelete = onDocumentDeleted("users/{userId}", async (event) => {
   if (!event.params?.userId) {
     console.error("No userId parameter provided for user deletion.");
@@ -85,7 +80,8 @@ export const onUserDelete = onDocumentDeleted("users/{userId}", async (event) =>
   }
 
   const userId = event.params.userId;
-  // TODO: Add cleanup logic for all created resources
+  console.log(`User ${userId} deleted`);
+  // TODO: Add cleanup logic for resources (buckets, datasets, etc.)
   // This could include:
   // - Deleting GCS buckets
   // - Deleting BigQuery datasets

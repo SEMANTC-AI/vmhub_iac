@@ -6,7 +6,7 @@ import { InfrastructureError } from "./types";
 import { config } from "./config";
 
 /**
- * Provisioner class for handling GCP infrastructure setup
+ * provisioning GCP infrastructure resources
  */
 export class InfrastructureProvisioner {
   private projectId: string;
@@ -15,7 +15,7 @@ export class InfrastructureProvisioner {
   private scheduler: CloudSchedulerClient;
 
   /**
-   * Initialize the infrastructure provisioner
+   * Initializes the InfrastructureProvisioner with project configuration
    */
   constructor() {
     this.projectId = config.projectId;
@@ -27,9 +27,10 @@ export class InfrastructureProvisioner {
   /**
    * Creates a Cloud Run job for data synchronization
    * @param {string} cnpj - Company identifier
+   * @param {string} userId - Firestore user ID
    * @return {Promise<void>}
    */
-  async createCloudRunJob(cnpj: string): Promise<void> {
+  async createCloudRunJob(cnpj: string, userId: string): Promise<void> {
     const name = `vmhub-sync-${cnpj}`;
     const parent = `projects/${this.projectId}/locations/${config.region}`;
 
@@ -51,6 +52,7 @@ export class InfrastructureProvisioner {
                   { name: "CNPJ", value: cnpj },
                   { name: "ENVIRONMENT", value: this.environment },
                   { name: "PROJECT_ID", value: this.projectId },
+                  { name: "USER_ID", value: userId },
                 ],
                 resources: {
                   limits: {
@@ -65,9 +67,8 @@ export class InfrastructureProvisioner {
       };
 
       const [operation] = await this.cloudRun.createJob(job);
-      const [response] = await operation.promise();
-
-      console.log(`Cloud Run job ${name} created successfully:`, response);
+      await operation.promise();
+      console.log(`Cloud Run job ${name} created successfully`);
     } catch (error) {
       console.error(`error creating Cloud Run job ${name}:`, error);
       throw this.handleError(error);
@@ -75,7 +76,7 @@ export class InfrastructureProvisioner {
   }
 
   /**
-   * Creates a Cloud Scheduler job for periodic sync
+   * Creates a Cloud Scheduler job to run the Cloud Run job periodically
    * @param {string} cnpj - Company identifier
    * @return {Promise<void>}
    */
@@ -122,12 +123,13 @@ export class InfrastructureProvisioner {
   /**
    * Provisions Cloud Run and Scheduler jobs
    * @param {string} cnpj - Company identifier
-   * @return {Promise<boolean>} Success status of the provisioning
+   * @param {string} userId - Firestore user ID
+   * @return {Promise<boolean>} Whether the provisioning succeeded
    */
-  async provision(cnpj: string): Promise<boolean> {
+  async provision(cnpj: string, userId: string): Promise<boolean> {
     console.log(`starting provisioning for CNPJ ${cnpj}`);
     try {
-      await this.createCloudRunJob(cnpj);
+      await this.createCloudRunJob(cnpj, userId);
       await this.createScheduler(cnpj);
       console.log(`completed provisioning for CNPJ ${cnpj}`);
       return true;
@@ -138,9 +140,9 @@ export class InfrastructureProvisioner {
   }
 
   /**
-   * Handles error transformation
-   * @param {unknown} error - Raw error to be processed
-   * @return {InfrastructureError} Standardized error format
+   * Handles errors and returns a standardized InfrastructureError
+   * @param {unknown} error - The original error
+   * @return {InfrastructureError} A standardized error object
    */
   private handleError(error: unknown): InfrastructureError {
     if (error instanceof Error) {

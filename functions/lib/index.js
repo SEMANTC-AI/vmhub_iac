@@ -39,9 +39,6 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const admin = __importStar(require("firebase-admin"));
 const infrastructure_1 = require("./infrastructure");
 admin.initializeApp();
-/**
- * Handles infrastructure provisioning when config is created
- */
 exports.onConfigSetup = (0, firestore_1.onDocumentCreated)("users/{userId}/config/settings", async (event) => {
     var _a;
     if (!event.data) {
@@ -72,7 +69,8 @@ exports.onConfigSetup = (0, firestore_1.onDocumentCreated)("users/{userId}/confi
             status: "provisioning",
             startedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-        await provisioner.provision(cnpj);
+        // PASS userId TO provision
+        await provisioner.provision(cnpj, userId);
         await snap.ref.update({
             status: "provisioned",
             completedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -97,9 +95,6 @@ exports.onConfigSetup = (0, firestore_1.onDocumentCreated)("users/{userId}/confi
         throw error;
     }
 });
-/**
- * Handles user deletion cleanup
- */
 exports.onUserDelete = (0, firestore_1.onDocumentDeleted)("users/{userId}", async (event) => {
     var _a;
     if (!((_a = event.params) === null || _a === void 0 ? void 0 : _a.userId)) {
@@ -107,7 +102,8 @@ exports.onUserDelete = (0, firestore_1.onDocumentDeleted)("users/{userId}", asyn
         return;
     }
     const userId = event.params.userId;
-    // TODO: Add cleanup logic for all created resources
+    console.log(`User ${userId} deleted`);
+    // TODO: Add cleanup logic for resources (buckets, datasets, etc.)
     // This could include:
     // - Deleting GCS buckets
     // - Deleting BigQuery datasets
