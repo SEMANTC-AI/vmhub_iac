@@ -3,13 +3,13 @@
 import { ConfigType } from "./types";
 
 export const config: ConfigType = {
-  projectId: process.env.PROJECT_ID || "",
+  projectId: process.env.GCLOUD_PROJECT || "", // Firebase automatically sets this
   environment: process.env.ENVIRONMENT || "dev",
   region: "us-central1",
   adminEmail: process.env.ADMIN_EMAIL || "",
   resourceDefaults: {
     cloudRun: {
-      containerImage: `us-central1-docker.pkg.dev/${process.env.PROJECT_ID}/vmhub-api/vmhub-sync:latest`,
+      containerImage: `us-central1-docker.pkg.dev/${process.env.GCLOUD_PROJECT}/vmhub-api/vmhub-sync:latest`,
       cpu: "1000m",
       memory: "512Mi",
       timeoutSeconds: 600,

@@ -42,7 +42,6 @@ export const onConfigSetup = onDocumentCreated("users/{userId}/config/settings",
       startedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // PASS userId TO provision
     await provisioner.provision(cnpj, userId);
 
     await snap.ref.update({
@@ -82,10 +81,5 @@ export const onUserDelete = onDocumentDeleted("users/{userId}", async (event) =>
   const userId = event.params.userId;
   console.log(`User ${userId} deleted`);
   // TODO: Add cleanup logic for resources (buckets, datasets, etc.)
-  // This could include:
-  // - Deleting GCS buckets
-  // - Deleting BigQuery datasets
-  // - Removing Cloud Run jobs
-  // - Removing Cloud Scheduler jobs
   console.log(`User ${userId} deleted`);
 });
