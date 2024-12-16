@@ -127,33 +127,38 @@ export class InfrastructureProvisioner {
     const runUri = `${baseUri}/${apiPath}/${jobName}:run`;
 
     try {
-      const jobRequest = {
-        parent,
-        job: {
-          name: `${parent}/jobs/${name}`,
-          schedule: config.resourceDefaults.scheduler.schedule,
-          timeZone: config.resourceDefaults.scheduler.timezone,
-          httpTarget: {
-            uri: runUri,
-            httpMethod: "POST" as const,
-            headers: {
-              "User-Agent": "Google-Cloud-Scheduler",
+        const jobRequest = {
+            parent,
+            job: {
+                name: `${parent}/jobs/${name}`,
+                schedule: config.resourceDefaults.scheduler.schedule,
+                timeZone: config.resourceDefaults.scheduler.timezone,
+                httpTarget: {
+                    uri: runUri,
+                    httpMethod: "POST" as const,
+                    headers: {
+                        "User-Agent": "Google-Cloud-Scheduler",
+                    },
+                    // Add OAuth configuration
+                    oauthToken: {
+                        serviceAccountEmail: `vmhub-sync-sa-${this.environment}@${this.projectId}.iam.gserviceaccount.com`,
+                        scope: "https://www.googleapis.com/auth/cloud-platform"
+                    }
+                },
+                retryConfig: {
+                    retryCount: config.resourceDefaults.scheduler.retryCount,
+                    maxRetryDuration: {
+                        seconds: parseInt(config.resourceDefaults.scheduler.maxRetryDuration),
+                    },
+                },
             },
-          },
-          retryConfig: {
-            retryCount: config.resourceDefaults.scheduler.retryCount,
-            maxRetryDuration: {
-              seconds: parseInt(config.resourceDefaults.scheduler.maxRetryDuration),
-            },
-          },
-        },
-      };
+        };
 
-      await this.scheduler.createJob(jobRequest);
-      console.log(`Cloud Scheduler job ${name} created successfully`);
+        await this.scheduler.createJob(jobRequest);
+        console.log(`Cloud Scheduler job ${name} created successfully`);
     } catch (error) {
-      console.error(`error creating Cloud Scheduler job ${name}:`, error);
-      throw this.handleError(error);
+        console.error(`error creating Cloud Scheduler job ${name}:`, error);
+        throw this.handleError(error);
     }
   }
 
