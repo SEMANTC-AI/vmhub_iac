@@ -16,7 +16,7 @@ exports.config = {
             maxRetries: 3,
         },
         scheduler: {
-            schedule: "0 */4 * * *",
+            schedule: "0 5 * * *", // Runs at 5:00 AM every day
             timezone: "America/Sao_Paulo",
             retryCount: 3,
             maxRetryDuration: "30s",

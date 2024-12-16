@@ -22,3 +22,5 @@ chmod +x deploy.sh
 
 # Run the deployment
 ./deploy.sh dev semantc-ai us-central1 fernando@abcdataz.com
+
+npm run lint:fix 

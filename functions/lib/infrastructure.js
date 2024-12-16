@@ -118,6 +118,11 @@ class InfrastructureProvisioner {
                         headers: {
                             "User-Agent": "Google-Cloud-Scheduler",
                         },
+                        // Add OAuth configuration
+                        oauthToken: {
+                            serviceAccountEmail: `vmhub-sync-sa-${this.environment}@${this.projectId}.iam.gserviceaccount.com`,
+                            scope: "https://www.googleapis.com/auth/cloud-platform",
+                        },
                     },
                     retryConfig: {
                         retryCount: config_1.config.resourceDefaults.scheduler.retryCount,
