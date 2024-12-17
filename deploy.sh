@@ -126,7 +126,7 @@ firebase functions:config:set \
 
 # Deploy functions
 echo "Deploying functions to Firebase..."
-firebase deploy --only functions --project "$PROJECT_ID"
+firebase deploy --only functions:onConfigSetup,functions:onUserDelete --project "$PROJECT_ID"
 
 echo "✅ Functions deployment completed!"
 echo "🎉 All deployments completed successfully!"

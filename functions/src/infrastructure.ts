@@ -6,7 +6,7 @@ import { InfrastructureError } from "./types";
 import { config } from "./config";
 
 /**
- * provisioning GCP infrastructure resources
+ * Provisioning GCP infrastructure resources
  */
 export class InfrastructureProvisioner {
   private projectId: string;
@@ -15,7 +15,7 @@ export class InfrastructureProvisioner {
   private scheduler: CloudSchedulerClient;
 
   /**
-   * initializes the InfrastructureProvisioner with project configuration
+   * Initializes the InfrastructureProvisioner with project configuration
    */
   constructor() {
     if (!config.projectId) {
@@ -59,7 +59,7 @@ export class InfrastructureProvisioner {
   }
 
   /**
-   * creates a Cloud Run job for data synchronization
+   * Creates a Cloud Run job for data synchronization
    * @param {string} cnpj - Company identifier
    * @param {string} userId - Firestore user ID
    * @return {Promise<void>}
@@ -73,7 +73,6 @@ export class InfrastructureProvisioner {
         parent,
         jobId,
         job: {
-          // remove the name field
           labels: {
             environment: this.environment,
             cnpj: cnpj,
@@ -139,7 +138,6 @@ export class InfrastructureProvisioner {
             headers: {
               "User-Agent": "Google-Cloud-Scheduler",
             },
-            // Add OAuth configuration
             oauthToken: {
               serviceAccountEmail: `vmhub-sync-sa-${this.environment}@${this.projectId}.iam.gserviceaccount.com`,
               scope: "https://www.googleapis.com/auth/cloud-platform",
@@ -163,6 +161,54 @@ export class InfrastructureProvisioner {
   }
 
   /**
+   * Creates a Cloud Scheduler job for campaign processing
+   * @param {string} cnpj - Company identifier
+   * @param {string} userId - Firestore user ID
+   * @return {Promise<void>}
+   */
+  async createCampaignScheduler(cnpj: string, userId: string): Promise<void> {
+    const name = `vmhub-campaign-schedule-${cnpj}-${this.environment}`;
+    const parent = `projects/${this.projectId}/locations/${config.region}`;
+
+    try {
+      const jobRequest = {
+        parent,
+        job: {
+          name: `${parent}/jobs/${name}`,
+          schedule: "30 6 * * *", // 6:30 AM Brazil time
+          timeZone: config.resourceDefaults.scheduler.timezone,
+          httpTarget: {
+            uri: `https://${config.region}-${this.projectId}.cloudfunctions.net/triggerCampaignProcessing`,
+            httpMethod: "POST" as const,
+            headers: {
+              "Content-Type": "application/json",
+              "User-Agent": "Google-Cloud-Scheduler",
+            },
+            body: Buffer.from(JSON.stringify({ userId })).toString("base64"),
+            // using OIDC token instead of OAuth
+            oidcToken: {
+              serviceAccountEmail: `vmhub-sync-sa-${this.environment}@${this.projectId}.iam.gserviceaccount.com`,
+              audience: `https://${config.region}-${this.projectId}.cloudfunctions.net/triggerCampaignProcessing`,
+            },
+          },
+          retryConfig: {
+            retryCount: config.resourceDefaults.scheduler.retryCount,
+            maxRetryDuration: {
+              seconds: parseInt(config.resourceDefaults.scheduler.maxRetryDuration),
+            },
+          },
+        },
+      };
+
+      await this.scheduler.createJob(jobRequest);
+      console.log(`Campaign scheduler job ${name} created successfully`);
+    } catch (error) {
+      console.error(`error creating campaign scheduler job ${name}:`, error);
+      throw this.handleError(error);
+    }
+  }
+
+  /**
    * Provisions Cloud Run and Scheduler jobs
    * @param {string} cnpj - Company identifier
    * @param {string} userId - Firestore user ID
@@ -173,6 +219,7 @@ export class InfrastructureProvisioner {
     try {
       await this.createCloudRunJob(cnpj, userId);
       await this.createScheduler(cnpj);
+      await this.createCampaignScheduler(cnpj, userId);
       console.log(`completed provisioning for CNPJ ${cnpj}`);
       return true;
     } catch (error) {

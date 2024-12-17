@@ -21,6 +21,12 @@ exports.config = {
             retryCount: 3,
             maxRetryDuration: "30s",
         },
+        campaignScheduler: {
+            schedule: "30 6 * * *", // Runs at 6:30 AM every day
+            timezone: "America/Sao_Paulo",
+            retryCount: 3,
+            maxRetryDuration: "30s",
+        },
         storage: {
             location: "US-CENTRAL1",
             retentionDays: 30,

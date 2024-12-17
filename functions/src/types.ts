@@ -8,6 +8,7 @@ export interface ConfigType {
   resourceDefaults: {
     cloudRun: CloudRunConfig;
     scheduler: SchedulerConfig;
+    campaignScheduler: SchedulerConfig;
     storage: StorageConfig;
     bigquery: BigQueryConfig;
   };
